@@ -182,7 +182,9 @@
 <PieceSprite />
 
 <div class="mx-auto flex min-h-dvh max-w-lg flex-col px-4">
-  <header class="safe-top flex h-14 items-center gap-2">
+  <!-- La marge de l'encoche (safe-top) est à part : la barre garde ses 56 px -->
+  <header class="safe-top shrink-0">
+    <div class="flex h-14 items-center gap-2">
     {#if screen.name !== 'edit'}
       <button
         class="-ml-2 flex h-12 items-center gap-1 rounded-xl pr-3 pl-2 text-stone-300 active:bg-stone-800"
@@ -222,6 +224,7 @@
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
       </svg>
     </button>
+    </div>
   </header>
 
   <main class="flex-1">
