@@ -13,7 +13,7 @@
   $effect(() => {
     if (!open) return
     getEngine().ready.then(() => (engineName = getEngine().name), () => undefined)
-    getMl().ready.then((r) => (mlBackend = r.backend), () => (mlBackend = 'indisponible'))
+    getMl().backend().then((b) => (mlBackend = b), () => (mlBackend = 'indisponible'))
   })
   let storage = $state<{ usage: number; persisted: boolean } | null>(null)
   $effect(() => {

@@ -14,8 +14,10 @@
   interface Props {
     onvalidate: () => Promise<void>
     onretake: () => void
+    /** Secours : passer à la saisie manuelle si la reconnaissance échoue. */
+    onmanual: () => void
   }
-  let { onvalidate, onretake }: Props = $props()
+  let { onvalidate, onretake, onmanual }: Props = $props()
 
   const vision = getVision()
   let busy = $state(false)
@@ -87,7 +89,10 @@
     {#if busy && !capture.quad}
       <p class="text-center text-sm text-stone-400">Analyse de la photo...</p>
     {:else if error}
-      <p class="rounded-xl bg-red-950/60 px-4 py-3 text-sm text-red-200 ring-1 ring-red-900">{error}</p>
+      <div class="rounded-xl bg-red-950/60 px-4 py-3 text-sm text-red-200 ring-1 ring-red-900">
+        <p>{error}</p>
+        <button class="btn-secondary mt-2 w-full" onclick={onmanual}>Saisir la position à la main</button>
+      </div>
     {:else if det && det.quad}
       <p class="rounded-xl bg-emerald-950/60 px-4 py-3 text-sm text-emerald-200 ring-1 ring-emerald-800">
         Échiquier détecté ({det.corners} coins de cases repérés sur 49).

@@ -53,6 +53,12 @@ export class MlClient {
     return this.call<TrainResult>({ type: 'train', profileId }, [], progress)
   }
 
+  /** Moteur de calcul réellement utilisé (peut changer après un repli). */
+  async backend(): Promise<string> {
+    await this.ready
+    return this.call<string>({ type: 'backend' })
+  }
+
   /** Demande l'arrêt de l'entraînement en cours. */
   stop() {
     this.worker.postMessage({ id: 0, req: { type: 'stop' } satisfies MlRequest })

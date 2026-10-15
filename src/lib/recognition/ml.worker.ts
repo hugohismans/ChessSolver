@@ -21,6 +21,7 @@ export type MlRequest =
   | { type: 'predict'; tiles: Uint8Array; profileId: string }
   | { type: 'train'; profileId: string }
   | { type: 'stop' }
+  | { type: 'backend' }
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope
 
@@ -42,14 +43,18 @@ ctx.onmessage = async (e: MessageEvent<{ id: number; req: MlRequest }>) => {
       case 'init':
         ctx.postMessage({ id, result: await init(req.base) })
         break
+      case 'backend':
+        await initPromise
+        ctx.postMessage({ id, result: tf.getBackend() })
+        break
       case 'predict': {
-        const probs = await predict(req.tiles, req.profileId)
+        const probs = await withFallback(() => predict(req.tiles, req.profileId))
         ctx.postMessage({ id, result: probs }, [probs.buffer])
         break
       }
       case 'train':
         stopRequested = false
-        ctx.postMessage({ id, result: await train(req.profileId, (p) => ctx.postMessage({ id, progress: p })) })
+        ctx.postMessage({ id, result: await withFallback(() => train(req.profileId, (p) => ctx.postMessage({ id, progress: p }))) })
         break
     }
   } catch (err) {
@@ -57,25 +62,85 @@ ctx.onmessage = async (e: MessageEvent<{ id: number; req: MlRequest }>) => {
   }
 }
 
-/** Choisit le meilleur moteur de calcul disponible puis charge le modèle de base. */
-async function init(base: string): Promise<{ backend: string }> {
+// ---------------------------------------------------------------------------
+// Choix du moteur de calcul
+//
+// WebGL est le plus rapide, mais certains navigateurs l'acceptent puis
+// échouent à compiler les shaders (constaté sur iPhone, dans un worker).
+// Chaque moteur doit donc réussir un vrai calcul complet avant d'être
+// retenu, et une erreur WebGL en cours de route fait basculer sur WASM.
+
+let initPromise: Promise<{ backend: string }> | null = null
+
+function init(base: string): Promise<{ backend: string }> {
   baseUrl = base
-  if (!extractor) {
-    let ok = false
-    // WebGL dans un worker : nécessite OffscreenCanvas
-    if (typeof OffscreenCanvas !== 'undefined') ok = await tf.setBackend('webgl').catch(() => false)
-    if (!ok) {
-      setWasmPaths(`${base}tfjs/`)
-      ok = await tf.setBackend('wasm').catch(() => false)
+  setWasmPaths(`${base}tfjs/`)
+  initPromise ??= (async () => {
+    const candidates = [...(typeof OffscreenCanvas !== 'undefined' ? ['webgl'] : []), 'wasm', 'cpu']
+    let lastError: unknown = null
+    for (const b of candidates) {
+      try {
+        await useBackend(b)
+        return { backend: b }
+      } catch (e) {
+        lastError = e
+        console.warn(`Moteur ${b} indisponible :`, e instanceof Error ? e.message : e)
+      }
     }
-    if (!ok) await tf.setBackend('cpu')
-    await tf.ready()
-    extractor = await tf.loadLayersModel(`${base}models/base/extractor/model.json`)
-    baseHead = await tf.loadLayersModel(`${base}models/base/head/model.json`)
-    // Premier passage à vide : compile les shaders, accélère la suite
-    tf.tidy(() => extractor!.predict(tf.zeros([1, TILE, TILE, 3])))
+    throw lastError instanceof Error ? lastError : new Error('Aucun moteur de calcul disponible')
+  })()
+  return initPromise
+}
+
+/** Active un moteur, (re)charge le modèle de base et vérifie qu'il calcule juste. */
+async function useBackend(name: string) {
+  disposeModels()
+  if (!(await tf.setBackend(name))) throw new Error(`Moteur ${name} refusé`)
+  await tf.ready()
+  extractor = await tf.loadLayersModel(`${baseUrl}models/base/extractor/model.json`)
+  baseHead = await tf.loadLayersModel(`${baseUrl}models/base/head/model.json`)
+  // Test complet : extraction, tête et augmentation, avec lecture du
+  // résultat (les erreurs de shaders n'apparaissent qu'à ce moment-là)
+  const x = tf.zeros([2, TILE, TILE, 3]) as tf.Tensor4D
+  const f = extractor.predict(x) as tf.Tensor
+  const p = baseHead.predict(f) as tf.Tensor
+  const a = augment(x)
+  try {
+    const probs = await p.data()
+    await a.data()
+    if (!probs.every((v) => Number.isFinite(v))) throw new Error(`Calcul invalide sur le moteur ${name}`)
+  } finally {
+    tf.dispose([x, f, p, a])
   }
-  return { backend: tf.getBackend() }
+}
+
+function disposeModels() {
+  extractor?.dispose()
+  baseHead?.dispose()
+  extractor = null
+  baseHead = null
+  heads.forEach((h) => h.model.dispose())
+  heads.clear()
+}
+
+const GPU_ERROR = /shader|webgl|gl_|context|texture|framebuffer|program/i
+
+/** Relance une opération sur WASM si WebGL échoue en cours de route. */
+async function withFallback<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (tf.getBackend() !== 'webgl' || !GPU_ERROR.test(msg)) throw e
+    console.warn('WebGL en échec, bascule sur WebAssembly :', msg)
+    try {
+      await useBackend('wasm')
+    } catch {
+      await useBackend('cpu')
+    }
+    initPromise = Promise.resolve({ backend: tf.getBackend() })
+    return fn()
+  }
 }
 
 /** Vignettes uint8 (N x TILE x TILE x 3) -> tenseur normalisé [-1, 1]. */

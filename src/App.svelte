@@ -234,7 +234,7 @@
     {:else if screen.name === 'camera'}
       <Camera {onphoto} />
     {:else if screen.name === 'corners'}
-      <Corners onvalidate={cornersValidated} onretake={retake} />
+      <Corners onvalidate={cornersValidated} onretake={retake} onmanual={home} />
     {:else if screen.name === 'squares'}
       <Squares onback={() => history.back()} />
     {:else if screen.name === 'calibrate'}
