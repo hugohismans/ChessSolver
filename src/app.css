@@ -18,6 +18,18 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Réactivité tactile : pas de délai ni de zoom au double appui, pas de
+   sélection de texte accidentelle sur les commandes */
+button,
+label,
+select,
+[role='grid'],
+[role='application'] {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Zones sûres des téléphones à encoche */
 .safe-bottom {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
@@ -29,10 +41,10 @@ body {
 /* Composants réutilisables : boutons larges, faciles à toucher d'une main */
 @layer components {
   .btn-primary {
-    @apply flex h-14 items-center justify-center gap-2 rounded-2xl bg-teal-500 px-5 text-lg font-semibold text-stone-950 shadow-lg shadow-teal-950/50 active:bg-teal-400 disabled:bg-stone-800 disabled:text-stone-500 disabled:shadow-none;
+    @apply flex h-14 items-center justify-center gap-2 rounded-2xl bg-teal-500 px-5 text-lg leading-tight font-semibold whitespace-nowrap max-[380px]:px-3 max-[380px]:text-base text-stone-950 shadow-lg shadow-teal-950/50 active:bg-teal-400 disabled:bg-stone-800 disabled:text-stone-500 disabled:shadow-none;
   }
   .btn-secondary {
-    @apply flex h-12 items-center justify-center gap-2 rounded-xl bg-stone-800 px-3 text-sm font-medium text-stone-100 active:bg-stone-700 disabled:text-stone-600;
+    @apply flex h-12 items-center justify-center gap-2 rounded-xl bg-stone-800 px-3 text-center text-sm leading-tight font-medium max-[380px]:px-2 text-stone-100 active:bg-stone-700 disabled:text-stone-600;
   }
   .btn-danger {
     @apply flex h-14 items-center justify-center gap-2 rounded-2xl bg-red-500 px-5 text-lg font-semibold text-stone-950 active:bg-red-400;

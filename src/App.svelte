@@ -20,6 +20,8 @@
   import { recognizeCapture } from './lib/recognition/run'
   import { getMl } from './lib/recognition/client'
   import type { CapturePurpose } from './lib/state/capture.svelte'
+  import PwaToast from './lib/components/PwaToast.svelte'
+  import { pwa } from './lib/state/pwa.svelte'
   import { position } from './lib/state/position.svelte'
   import { settings } from './lib/state/settings.svelte'
   import { capture } from './lib/state/capture.svelte'
@@ -53,6 +55,7 @@
   // Chargement anticipé du moteur : il est prêt quand on lance l'analyse
   $effect(() => {
     getEngine()
+    pwa.init()
   })
 
   // Mémorisation locale des réglages et de la position
@@ -190,22 +193,27 @@
         <span class="font-semibold text-stone-100">{TITLES[screen.name]}</span>
       </button>
     {:else}
-      <h1 class="text-xl font-bold tracking-tight">Chess<span class="text-teal-400">Cam</span></h1>
+      <h1 class="shrink-0 text-xl font-bold tracking-tight">Chess<span class="text-teal-400">Cam</span></h1>
     {/if}
     <span class="flex-1"></span>
+    {#if !pwa.online}
+      <span class="shrink-0 rounded-full bg-stone-800 px-2.5 py-1 text-xs whitespace-nowrap text-stone-300" role="status">Hors ligne</span>
+    {/if}
     {#if screen.name === 'edit'}
       <button
-        class="flex h-12 items-center gap-1.5 rounded-xl px-3 text-sm text-stone-300 active:bg-stone-800"
+        class="flex h-12 min-w-12 shrink-0 items-center justify-center gap-1.5 rounded-xl px-2 text-sm text-stone-300 active:bg-stone-800"
+        aria-label={`Calibrer mon jeu (profil : ${profiles.activeName})`}
         onclick={() => go({ name: 'calibrate' })}
       >
         <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M9 21h6M10 17h4l1-6 2-2-2-4h-6l-2 4 2 2z" />
         </svg>
-        <span class="max-w-28 truncate">{profiles.activeName}</span>
+        <!-- Nom du profil masqué sur les écrans étroits (icône seule) -->
+        <span class="hidden max-w-28 truncate min-[400px]:inline">{profiles.activeName}</span>
       </button>
     {/if}
     <button
-      class="-mr-2 flex h-12 w-12 items-center justify-center rounded-xl text-stone-300 active:bg-stone-800"
+      class="-mr-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-stone-300 active:bg-stone-800"
       aria-label="Réglages"
       onclick={() => (settingsOpen = true)}
     >
@@ -246,3 +254,4 @@
 </div>
 
 <SettingsSheet open={settingsOpen} onclose={() => (settingsOpen = false)} />
+<PwaToast />

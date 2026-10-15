@@ -8,6 +8,7 @@
   import { getVision } from '../vision/client'
   import { canvasFromFile, toCanvas } from '../vision/image'
   import type { Quad } from '../vision/geometry'
+  import { keepAwake, haptic } from '../wakelock'
 
   interface Props {
     onphoto: (photo: HTMLCanvasElement) => void
@@ -31,6 +32,21 @@
   let liveQuad = $state<Quad | null>(null)
   let liveConf = $state(0)
   let stopped = false
+  let releaseWake: (() => void) | null = null
+
+  // Lampe torche (si le téléphone la propose)
+  let torchAvailable = $state(false)
+  let torchOn = $state(false)
+  async function toggleTorch() {
+    const track = stream?.getVideoTracks()[0]
+    if (!track) return
+    try {
+      await track.applyConstraints({ advanced: [{ torch: !torchOn } as MediaTrackConstraintSet] })
+      torchOn = !torchOn
+    } catch {
+      torchAvailable = false
+    }
+  }
 
   onMount(() => {
     vision.onprogress = (p) => (cvProgress = p)
@@ -42,10 +58,12 @@
       (e: Error) => (cvError = e.message),
     )
     startCamera()
+    releaseWake = keepAwake()
   })
 
   onDestroy(() => {
     stopped = true
+    releaseWake?.()
     vision.onprogress = null
     stream?.getTracks().forEach((t) => t.stop())
   })
@@ -71,6 +89,8 @@
         video.srcObject = stream
         await video.play()
         videoSize = { w: video.videoWidth, h: video.videoHeight }
+        const caps = stream.getVideoTracks()[0]?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined
+        torchAvailable = !!caps?.torch
       }
     } catch (e) {
       const name = e instanceof DOMException ? e.name : ''
@@ -110,6 +130,7 @@
   function shoot() {
     const v = video
     if (!v || !v.videoWidth) return
+    haptic()
     onphoto(toCanvas(v, v.videoWidth, v.videoHeight))
   }
 
@@ -200,7 +221,13 @@
       >
         <span class="h-16 w-16 rounded-full border-4 {found ? 'border-green-500' : 'border-stone-900'}"></span>
       </button>
-      <span></span>
+      {#if torchAvailable}
+        <button class="btn-secondary h-14! rounded-2xl! {torchOn ? 'text-yellow-300!' : ''}" aria-pressed={torchOn} onclick={toggleTorch}>
+          {torchOn ? 'Lampe allumée' : 'Lampe'}
+        </button>
+      {:else}
+        <span></span>
+      {/if}
     </div>
   </div>
   <input bind:this={fileInput} type="file" accept="image/*" class="hidden" onchange={onfile} />

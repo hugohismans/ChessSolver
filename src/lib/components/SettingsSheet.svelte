@@ -4,6 +4,7 @@
   import { settings, DEPTH_MIN, DEPTH_MAX } from '../state/settings.svelte'
   import { getEngine } from '../engine/stockfish'
   import { getMl } from '../recognition/client'
+  import { pwa, persistStorage, storageInfo } from '../state/pwa.svelte'
 
   let { open, onclose }: { open: boolean; onclose: () => void } = $props()
 
@@ -14,6 +15,15 @@
     getEngine().ready.then(() => (engineName = getEngine().name), () => undefined)
     getMl().ready.then((r) => (mlBackend = r.backend), () => (mlBackend = 'indisponible'))
   })
+  let storage = $state<{ usage: number; persisted: boolean } | null>(null)
+  $effect(() => {
+    if (open) storageInfo().then((s) => (storage = s))
+  })
+  async function persist() {
+    await persistStorage()
+    storage = await storageInfo()
+  }
+
   const BACKENDS: Record<string, string> = { webgl: 'carte graphique (WebGL)', wasm: 'processeur (WebAssembly)', cpu: 'processeur (lent)' }
 
   function step(d: number) {
@@ -54,6 +64,31 @@
       <span>Notation française (C, F, T, D, R)</span>
       <input type="checkbox" bind:checked={settings.frenchNotation} />
     </label>
+  </section>
+
+  <section class="mb-5 flex flex-col gap-2 text-sm">
+    <h3 class="section-title">Application</h3>
+    {#if pwa.installed}
+      <p class="text-stone-300">ChessCam est installée sur cet appareil.</p>
+    {:else if pwa.canInstall}
+      <button class="btn-primary w-full" onclick={() => pwa.install()}>Installer ChessCam</button>
+    {:else if pwa.ios}
+      <p class="rounded-xl bg-stone-800 p-3 text-stone-300">
+        Pour installer ChessCam : bouton Partager de Safari, puis « Sur l’écran d’accueil ».
+      </p>
+    {/if}
+    <p class="text-stone-400" data-testid="offline-status">
+      {pwa.offlineReady ? 'Disponible hors ligne : moteur, détection et reconnaissance en cache.' : 'Mise en cache pour le hors ligne en cours...'}
+    </p>
+    {#if storage}
+      <p class="text-stone-400">
+        Données sur l'appareil : {(storage.usage / 1e6).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Mo.
+        {storage.persisted ? 'Protégées contre l’effacement automatique.' : ''}
+      </p>
+      {#if !storage.persisted}
+        <button class="btn-secondary w-full" onclick={persist}>Protéger mes profils de l’effacement automatique</button>
+      {/if}
+    {/if}
   </section>
 
   <section class="mb-2 text-sm text-stone-400">

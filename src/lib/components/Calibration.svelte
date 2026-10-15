@@ -14,6 +14,8 @@
   import { getMl } from '../recognition/client'
   import type { TrainProgress, TrainResult } from '../recognition/ml.worker'
   import type { PieceChar } from '../chess/position'
+  import { persistStorage } from '../state/pwa.svelte'
+  import { keepAwake, haptic } from '../wakelock'
 
   interface Props {
     onstartphoto: () => void
@@ -47,6 +49,8 @@
     if (nameSheet === 'new') {
       const p = await createProfile(name)
       settings.activeProfile = p.id
+      // Les profils représentent du travail : on demande à les conserver
+      persistStorage()
     } else if (active) {
       await saveProfile({ ...active, name })
     }
@@ -111,12 +115,16 @@
     trainError = ''
     result = null
     progress = { phase: 'features', progress: 0 }
+    // Écran allumé pendant l'entraînement (le navigateur ralentit les onglets en veille)
+    const release = keepAwake()
     try {
       result = await getMl().train(active.id, (p) => (progress = p))
       await profiles.refresh()
+      haptic(30)
     } catch (e) {
       trainError = e instanceof Error ? e.message : 'Entraînement impossible'
     } finally {
+      release()
       training = false
     }
   }

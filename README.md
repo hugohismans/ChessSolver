@@ -11,7 +11,7 @@ serveur, aucune image ni position envoyée sur Internet.
 | 1 | Saisie manuelle de la position, Stockfish, meilleur coup | ✅ |
 | 2 | Caméra, détection du plateau (OpenCV.js), ajustement des coins | ✅ |
 | 3 | Reconnaissance des pièces (TF.js) et calibration de son propre jeu | ✅ |
-| 4 | PWA hors ligne, cache des modèles, finitions mobiles | à venir |
+| 4 | PWA hors ligne, cache des modèles, finitions mobiles | ✅ |
 
 ## Fonctionnalités (phase 1)
 
@@ -176,9 +176,39 @@ npx tsx training/check-export.ts
 par TensorFlow.js, et écrit lui-même le format « layers model » (pas besoin
 du paquet `tensorflowjs`, incompatible avec numpy 2).
 
+## Fonctionnalités (phase 4)
+
+- **Application installable** (PWA) : manifeste, icônes (dont « maskable »
+  pour Android), mode plein écran. Bouton « Installer ChessCam » dans les
+  Réglages quand le navigateur le propose ; sur iPhone, les Réglages
+  expliquent la marche à suivre (Partager, « Sur l'écran d'accueil »).
+- **Hors ligne après le premier chargement** : le service worker (Workbox,
+  via `vite-plugin-pwa`) met en cache l'application, Stockfish, OpenCV.js,
+  TensorFlow.js (moteur WASM) et le modèle de reconnaissance (MobileNet +
+  tête), soit environ 19 Mo téléchargés en arrière-plan. Photo, détection,
+  reconnaissance, calibration et analyse fonctionnent sans réseau. Un badge
+  « Hors ligne » s'affiche dans l'en-tête.
+- **Mises à jour** : chaque fichier en cache porte une révision ; seuls les
+  fichiers modifiés sont retéléchargés (OpenCV, 13 Mo, ne l'est pas à chaque
+  version). Une invite propose de passer à la nouvelle version.
+- **Données protégées** : à la création d'un profil, l'app demande au
+  navigateur de ne pas effacer ses données (profils, exemples, cache). Les
+  Réglages affichent l'espace utilisé.
+- **Finitions mobiles** : écran maintenu allumé pendant la prise de vue et
+  l'entraînement, lampe torche si le téléphone en a une, vibration au
+  déclenchement et en fin d'entraînement, boutons sans délai ni zoom au
+  double appui, mise en page vérifiée jusqu'à 320 px de large (iPhone SE),
+  zones sûres des écrans à encoche, moteur de calcul de la reconnaissance
+  affiché dans les Réglages (WebGL, WebAssembly ou processeur).
+
+Les icônes se régénèrent avec `node scripts/make-icons.cjs` (depuis
+`scripts/icon.svg`, nécessite Playwright).
+
 ## Démarrer
 
-Prérequis : Node.js 20 ou plus récent.
+Prérequis : Node.js 20 ou plus récent. Le service worker n'est actif que
+dans le build (`npm run build` puis `npm run preview`), pas en
+développement.
 
 ```bash
 npm install
