@@ -1,6 +1,7 @@
 node_modules
 dist
 public/engine
+public/opencv
 *.log
 .DS_Store
 training/.venv

@@ -9,7 +9,7 @@ serveur, aucune image ni position envoyée sur Internet.
 | Phase | Contenu | État |
 | --- | --- | --- |
 | 1 | Saisie manuelle de la position, Stockfish, meilleur coup | ✅ |
-| 2 | Caméra, détection du plateau (OpenCV.js), ajustement des coins | à venir |
+| 2 | Caméra, détection du plateau (OpenCV.js), ajustement des coins | ✅ |
 | 3 | Reconnaissance des pièces (TF.js) et calibration de son propre jeu | à venir |
 | 4 | PWA hors ligne, cache des modèles, finitions mobiles | à venir |
 
@@ -35,6 +35,61 @@ serveur, aucune image ni position envoyée sur Internet.
   et position mémorisées localement.
 - Le bouton « retour » du téléphone ramène de l'analyse à l'éditeur.
 
+## Fonctionnalités (phase 2)
+
+- **Photo** : caméra arrière (`getUserMedia`) avec repérage du plateau en
+  direct (contour vert quand l'échiquier est trouvé), ou import depuis la
+  galerie (orientation EXIF respectée). Photos réduites à 1600 px.
+- **Détection automatique du plateau** (OpenCV.js, dans un Web Worker) :
+  coins de la zone de jeu 8x8, sans le cadre, même en perspective, plateau
+  tourné, rangées masquées par les pièces. Voir « Détection » plus bas.
+- **Ajustement manuel des coins** : toujours proposé, pré-rempli par la
+  détection. On fait glisser la poignée la plus proche du doigt
+  (déplacement relatif, le doigt ne cache pas le coin), avec une loupe et
+  la grille 8x8 projetée pour vérifier l'alignement. Clavier : N change de
+  coin, flèches pour déplacer.
+- **Redressement et découpe** : plateau aplati (homographie), bouton
+  « Tourner » pour mettre les blancs en bas, et affichage de débogage des
+  64 vignettes de 96x96 px (option « débord vers le haut » pour inclure le
+  haut des pièces, utile à la reconnaissance en phase 3).
+
+## Détection du plateau
+
+Code : `src/lib/vision/detect.ts`, sans dépendance au navigateur (OpenCV
+est injecté), donc testable sous Node.
+
+1. **Coins en X** : on cherche dans toute l'image les points où 4 cases se
+   touchent en diagonale, avec un filtre « selle » à 4 orientations. Le
+   cadre, la table et les jonctions en T du bord n'y répondent pas.
+2. **Réseau** : à partir d'une case (4 coins aux signes alternés, sans autre
+   coin à l'intérieur), on fait croître un réseau régulier (homographie aux
+   moindres carrés) en ajoutant les coins attendus. Secours : quadrilatères
+   des contours recalés par un « peigne » de lignes équidistantes.
+3. **Placement** : quand une rangée est couverte de pièces, plusieurs
+   positions du plateau 8x8 expliquent les coins visibles. On garde celle
+   dont le pourtour montre des jonctions en T (cases contre cadre ou table)
+   et aucun coin en X.
+4. **Affinage** : relocalisation des 49 coins intérieurs puis homographie
+   aux moindres carrés avec rejet des points aberrants, jusqu'à stabilité.
+5. **Confiance** : nombre de coins retrouvés, damier, cohérence des signes,
+   régularité géométrique. En dessous du seuil, l'app demande de placer les
+   coins à la main.
+
+Évaluation sur 52 photos de synthèse (perspective, rotation jusqu'à 45°,
+avec ou sans cadre, éclairage inégal, flou, pièces debout) : toutes
+détectées, 48 avec une erreur maximale sur un coin inférieure à un quart de
+case, la pire à 0,31 case. Environ 90 ms par photo sous Node sur un PC.
+
+```bash
+# Générer des photos de synthèse (nécessite Playwright et Chromium)
+node tests/fixtures/generate.cjs 40 /tmp/photos 100 0.8
+# Mesurer la précision de la détection sur un dossier
+npx tsx scripts/eval-detection.ts /tmp/photos
+```
+
+Huit de ces photos, parmi les plus difficiles, sont dans `tests/fixtures`
+et servent de tests automatiques (`npm test`).
+
 ## Démarrer
 
 Prérequis : Node.js 20 ou plus récent.
@@ -48,9 +103,11 @@ npm run build      # build statique dans dist/
 npm run preview    # sert le build localement
 ```
 
-`npm run dev` et `npm run build` copient d'abord le moteur Stockfish depuis
-`node_modules/stockfish` vers `public/engine/` (script
-`scripts/copy-engine.mjs`).
+`npm run dev` et `npm run build` copient d'abord les fichiers lourds depuis
+`node_modules` vers `public/` (script `scripts/copy-vendor.mjs`) :
+Stockfish vers `public/engine/` et OpenCV.js vers `public/opencv/`.
+OpenCV.js (environ 13 Mo, WebAssembly inclus) n'est téléchargé qu'à la
+première ouverture de la caméra, avec une barre de progression.
 
 ## Déploiement
 
@@ -79,12 +136,21 @@ src/
   lib/chess/names.ts            noms des pièces, notation française
   lib/engine/stockfish.ts       pilotage UCI du worker Stockfish (une recherche à la fois)
   lib/engine/uci.ts             lecture des lignes « info » / « bestmove », scores
-  lib/state/*.svelte.ts         état partagé (runes) : position, réglages
+  lib/vision/detect.ts          détection du plateau (OpenCV), redressement
+  lib/vision/geometry.ts        homographies, quadrilatères
+  lib/vision/vision.worker.ts   worker : chargement d'OpenCV, détection, redressement
+  lib/vision/client.ts          appels au worker depuis l'interface
+  lib/vision/image.ts           canvas : photo, rotation, découpe des 64 cases
+  lib/state/*.svelte.ts         état partagé (runes) : position, réglages, photo
   lib/components/Board.svelte   échiquier SVG : pièces, flèches, surlignages, toucher
   lib/components/Editor.svelte  écran de saisie / correction
   lib/components/Analysis.svelte écran d'analyse
-tests/                          tests Vitest
-scripts/copy-engine.mjs         copie du moteur WASM dans public/engine
+  lib/components/Camera.svelte  écran photo (caméra, galerie, repérage en direct)
+  lib/components/Corners.svelte écran des coins (détection + CornerEditor)
+  lib/components/Squares.svelte écran des cases (redressement, rotation, 64 vignettes)
+tests/                          tests Vitest (+ photos de synthèse dans fixtures/)
+scripts/copy-vendor.mjs         copie de Stockfish et d'OpenCV.js dans public/
+scripts/eval-detection.ts       mesure de précision de la détection
 ```
 
 La grille (64 cases dans l'ordre du FEN, `a8` à `h1`) est le format commun
@@ -101,3 +167,4 @@ dépendance. Il réutilise le sprite de pièces de cm-chessboard.
 - Pièces : Cburnett (Wikimedia Commons), CC BY-SA 3.0, adaptées par
   cm-chessboard (MIT).
 - chess.js : BSD 2-Clause.
+- OpenCV.js : Apache 2.0.

@@ -23,8 +23,9 @@
 
   interface Props {
     onanalyse: (fen: string) => void
+    onphoto: () => void
   }
-  let { onanalyse }: Props = $props()
+  let { onanalyse, onphoto }: Props = $props()
 
   // Outil actif : null = toucher une case ouvre le menu de choix,
   // une pièce = la poser directement, 'erase' = vider la case
@@ -264,13 +265,21 @@
 
   <!-- Bouton principal, collé en bas pour le pouce -->
   <div class="safe-bottom sticky bottom-0 -mx-4 bg-gradient-to-t from-stone-950 via-stone-950 to-stone-950/0 px-4 pt-4">
-    <button
-      class="btn-primary w-full"
-      disabled={!position.validation.ok || position.validation.status === 'checkmate' || position.validation.status === 'stalemate'}
-      onclick={() => onanalyse(position.validation.fen)}
-    >
-      Analyser
-    </button>
+    <div class="grid grid-cols-[1fr_2fr] gap-2">
+      <button class="btn-secondary h-14! rounded-2xl! text-base!" onclick={onphoto}>
+        <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><circle cx="12" cy="13" r="4" />
+        </svg>
+        Photo
+      </button>
+      <button
+        class="btn-primary"
+        disabled={!position.validation.ok || position.validation.status === 'checkmate' || position.validation.status === 'stalemate'}
+        onclick={() => onanalyse(position.validation.fen)}
+      >
+        Analyser
+      </button>
+    </div>
   </div>
 </div>
 

@@ -1,17 +1,36 @@
 <!--
-  Racine de l'application : en-tête, navigation entre les écrans.
-  Phase 1 : Position (saisie manuelle) puis Analyse.
+  Racine de l'application : en-tête et navigation entre les écrans.
+  Flux photo : Photo -> Coins -> Cases -> Position (correction) -> Analyse.
+  Chaque écran empile une entrée d'historique : le bouton « retour » du
+  téléphone revient à l'écran précédent au lieu de quitter l'app.
 -->
 <script lang="ts">
   import PieceSprite from './lib/components/PieceSprite.svelte'
   import Editor from './lib/components/Editor.svelte'
   import Analysis from './lib/components/Analysis.svelte'
+  import Camera from './lib/components/Camera.svelte'
+  import Corners from './lib/components/Corners.svelte'
+  import Squares from './lib/components/Squares.svelte'
   import SettingsSheet from './lib/components/SettingsSheet.svelte'
   import { position } from './lib/state/position.svelte'
   import { settings } from './lib/state/settings.svelte'
+  import { capture } from './lib/state/capture.svelte'
   import { getEngine } from './lib/engine/stockfish'
 
-  type Screen = { name: 'edit' } | { name: 'analyse'; fen: string; key: number }
+  type Screen =
+    | { name: 'edit' }
+    | { name: 'analyse'; fen: string; key: number }
+    | { name: 'camera' }
+    | { name: 'corners' }
+    | { name: 'squares' }
+
+  const TITLES: Record<Screen['name'], string> = {
+    edit: 'Position',
+    analyse: 'Analyse',
+    camera: 'Photo',
+    corners: 'Coins du plateau',
+    squares: 'Cases',
+  }
 
   let screen = $state<Screen>({ name: 'edit' })
   let settingsOpen = $state(false)
@@ -26,22 +45,65 @@
   $effect(() => settings.persist())
   $effect(() => position.persist())
 
-  function goAnalyse(fen: string) {
-    screen = { name: 'analyse', fen, key: ++analyseKey }
-    // Le bouton « retour » du téléphone ramène à l'éditeur au lieu de quitter
-    history.pushState({ screen: 'analyse' }, '')
+  /** Va vers un écran en ajoutant une entrée d'historique. */
+  function go(next: Screen) {
+    screen = next
+    history.pushState({ screen: $state.snapshot(next), depth: depth() + 1 }, '')
     window.scrollTo({ top: 0 })
   }
 
-  function goEdit(fen?: string) {
-    if (fen) position.setFen(fen)
-    if (history.state?.screen === 'analyse') history.back()
+  /** Remplace l'écran courant sans ajouter d'entrée d'historique. */
+  function replace(next: Screen) {
+    screen = next
+    history.replaceState({ screen: $state.snapshot(next), depth: depth() }, '')
+  }
+
+  /** Profondeur de l'écran courant dans la pile (0 = éditeur). */
+  function depth(): number {
+    return history.state?.depth ?? 0
+  }
+
+  /** Revient à l'éditeur en dépilant tous les écrans. */
+  function home() {
+    const d = depth()
     screen = { name: 'edit' }
+    if (d > 0) history.go(-d)
     window.scrollTo({ top: 0 })
   }
 
-  function onpopstate() {
-    if (screen.name === 'analyse') screen = { name: 'edit' }
+  function onpopstate(e: PopStateEvent) {
+    const s = e.state?.screen as Screen | undefined
+    // Écrans photo sans photo en mémoire (page rechargée) : retour à l'éditeur
+    if (!s || ((s.name === 'corners' || s.name === 'squares') && !capture.photo)) screen = { name: 'edit' }
+    else if (s.name === 'analyse') screen = { ...s, key: ++analyseKey }
+    else screen = s
+    window.scrollTo({ top: 0 })
+  }
+
+  function goAnalyse(fen: string) {
+    go({ name: 'analyse', fen, key: ++analyseKey })
+  }
+
+  function backToEditor(fen?: string) {
+    if (fen) position.setFen(fen)
+    history.back()
+  }
+
+  function onphoto(photo: HTMLCanvasElement) {
+    capture.reset()
+    capture.photo = photo
+    // La photo remplace l'écran caméra dans l'historique
+    replace({ name: 'corners' })
+  }
+
+  function retake() {
+    capture.reset()
+    replace({ name: 'camera' })
+  }
+
+  function squaresDone() {
+    // Phase 2 : pas encore de reconnaissance, on passe à la saisie
+    home()
   }
 </script>
 
@@ -51,9 +113,14 @@
 
 <div class="mx-auto flex min-h-dvh max-w-lg flex-col px-4">
   <header class="safe-top flex h-14 items-center gap-2">
-    {#if screen.name === 'analyse'}
-      <button class="-ml-2 flex h-12 items-center gap-1 rounded-xl px-2 text-stone-300 active:bg-stone-800" onclick={() => goEdit()}>
-        <span class="text-2xl leading-none">‹</span> Position
+    {#if screen.name !== 'edit'}
+      <button
+        class="-ml-2 flex h-12 items-center gap-1 rounded-xl pr-3 pl-2 text-stone-300 active:bg-stone-800"
+        aria-label="Retour"
+        onclick={() => history.back()}
+      >
+        <span class="text-2xl leading-none">‹</span>
+        <span class="font-semibold text-stone-100">{TITLES[screen.name]}</span>
       </button>
     {:else}
       <h1 class="text-xl font-bold tracking-tight">Chess<span class="text-teal-400">Cam</span></h1>
@@ -73,11 +140,17 @@
 
   <main class="flex-1">
     {#if screen.name === 'edit'}
-      <Editor onanalyse={goAnalyse} />
-    {:else}
+      <Editor onanalyse={goAnalyse} onphoto={() => go({ name: 'camera' })} />
+    {:else if screen.name === 'analyse'}
       {#key screen.key}
-        <Analysis startFen={screen.fen} onedit={goEdit} />
+        <Analysis startFen={screen.fen} onedit={backToEditor} />
       {/key}
+    {:else if screen.name === 'camera'}
+      <Camera {onphoto} />
+    {:else if screen.name === 'corners'}
+      <Corners onvalidate={() => go({ name: 'squares' })} onretake={retake} />
+    {:else if screen.name === 'squares'}
+      <Squares onback={() => history.back()} onnext={squaresDone} />
     {/if}
   </main>
 </div>

@@ -4,14 +4,15 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "engine": "node scripts/copy-engine.mjs",
-    "dev": "npm run engine && vite",
-    "build": "npm run engine && vite build",
+    "vendor": "node scripts/copy-vendor.mjs",
+    "dev": "npm run vendor && vite",
+    "build": "npm run vendor && vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run"
   },
   "dependencies": {
+    "@techstark/opencv-js": "^5.0.0-release.1",
     "chess.js": "^1.4.0",
     "stockfish": "^19.0.1"
   },
@@ -19,9 +20,11 @@
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tailwindcss/vite": "^4.3.3",
     "@tsconfig/svelte": "^5.0.8",
+    "jpeg-js": "^0.4.4",
     "svelte": "^5.57.2",
     "svelte-check": "^4.7.6",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "5.9",
     "vite": "^8.3.4",
     "vitest": "^5.0.5"
