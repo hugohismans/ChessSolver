@@ -66,7 +66,8 @@
   </div>
   {#if doubtful > 8}
     <p class="rounded-xl bg-amber-950/60 px-4 py-3 text-sm text-amber-200 ring-1 ring-amber-900">
-      {doubtful} cases semblent ne pas correspondre (encadrées en rouge). Vérifiez l'orientation et les coins avant d'ajouter.
+      Le modèle actuel ne reconnaît pas {doubtful} de ces cases (encadrées en rouge). C'est normal pour un jeu qu'il ne
+      connaît pas encore : vérifiez simplement que les pièces blanches sont en bas et que chaque vignette montre bien sa case.
     </p>
   {/if}
 
