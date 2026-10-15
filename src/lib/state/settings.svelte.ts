@@ -9,9 +9,10 @@ interface SettingsData {
   showAllArrows: boolean // flèches pour les 3 lignes, ou seulement la meilleure
   showCoordinates: boolean
   frenchNotation: boolean // C, F, T, D, R au lieu de N, B, R, Q, K
+  activeProfile: string // profil de reconnaissance utilisé ('base' = modèle livré)
 }
 
-const DEFAULTS: SettingsData = { depth: 18, showAllArrows: true, showCoordinates: true, frenchNotation: true }
+const DEFAULTS: SettingsData = { depth: 18, showAllArrows: true, showCoordinates: true, frenchNotation: true, activeProfile: 'base' }
 
 export const DEPTH_MIN = 8
 export const DEPTH_MAX = 30
@@ -22,6 +23,7 @@ class Settings {
   showAllArrows = $state(DEFAULTS.showAllArrows)
   showCoordinates = $state(DEFAULTS.showCoordinates)
   frenchNotation = $state(DEFAULTS.frenchNotation)
+  activeProfile = $state(DEFAULTS.activeProfile)
 
   constructor() {
     const d = load(KEY, DEFAULTS)
@@ -29,6 +31,7 @@ class Settings {
     this.showAllArrows = !!d.showAllArrows
     this.showCoordinates = !!d.showCoordinates
     this.frenchNotation = !!d.frenchNotation
+    this.activeProfile = typeof d.activeProfile === 'string' ? d.activeProfile : 'base'
   }
 
   persist() {
@@ -37,6 +40,7 @@ class Settings {
       showAllArrows: this.showAllArrows,
       showCoordinates: this.showCoordinates,
       frenchNotation: this.frenchNotation,
+      activeProfile: this.activeProfile,
     } satisfies SettingsData)
   }
 }

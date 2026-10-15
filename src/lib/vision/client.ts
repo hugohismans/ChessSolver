@@ -67,6 +67,12 @@ export class VisionClient {
     const r = await this.call<RGBAImage>({ type: 'warp', quad: plain(quad), size, margin })
     return new ImageData(new Uint8ClampedArray(r.data), r.width, r.height)
   }
+
+  /** Les 64 vignettes pour la reconnaissance (repère photo, RGB). */
+  async tiles(quad: Quad): Promise<Uint8Array> {
+    await this.ready
+    return this.call<Uint8Array>({ type: 'tiles', quad: plain(quad) })
+  }
 }
 
 /** Retire les proxys réactifs de Svelte avant l'envoi au worker. */

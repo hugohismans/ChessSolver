@@ -12,7 +12,7 @@
   import { imageData } from '../vision/image'
 
   interface Props {
-    onvalidate: () => void
+    onvalidate: () => Promise<void>
     onretake: () => void
   }
   let { onvalidate, onretake }: Props = $props()
@@ -55,13 +55,19 @@
     if (!capture.quad) detect()
   })
 
+  let recognizing = $state(false)
   async function validate() {
     busy = true
+    recognizing = true
+    error = ''
     try {
       await ensureSent()
-      onvalidate()
+      await onvalidate()
+    } catch (e) {
+      error = e instanceof Error ? `Reconnaissance impossible : ${e.message}` : 'Reconnaissance impossible'
     } finally {
       busy = false
+      recognizing = false
     }
   }
 
@@ -100,6 +106,8 @@
   </div>
 
   <div class="safe-bottom sticky bottom-0 -mx-4 bg-gradient-to-t from-stone-950 via-stone-950 to-stone-950/0 px-4 pt-4">
-    <button class="btn-primary w-full" disabled={busy || !capture.quad} onclick={validate}>Valider les coins</button>
+    <button class="btn-primary w-full" disabled={busy || !capture.quad} onclick={validate}>
+      {recognizing ? 'Reconnaissance des pièces...' : 'Valider les coins'}
+    </button>
   </div>
 </div>

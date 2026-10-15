@@ -4,7 +4,11 @@
 import type { Quad } from '../vision/geometry'
 import type { DetectResult } from '../vision/detect'
 
+/** Pourquoi la photo est prise : jouer, ou calibrer le profil actif. */
+export type CapturePurpose = 'play' | 'calib-start' | 'calib-position'
+
 class Capture {
+  purpose = $state<CapturePurpose>('play')
   /** Photo réduite (au plus PHOTO_MAX px), non réactive en profondeur. */
   photo = $state.raw<HTMLCanvasElement | null>(null)
   /** Coins de la zone de jeu dans la photo : haut-gauche, haut-droit, bas-droit, bas-gauche. */

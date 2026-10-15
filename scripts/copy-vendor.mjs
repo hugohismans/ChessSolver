@@ -5,6 +5,7 @@
 //    Cette variante ne demande pas SharedArrayBuffer, donc aucun en-tête
 //    COOP/COEP : elle tourne telle quelle sur GitHub Pages ou Cloudflare Pages.
 //  - OpenCV.js (WASM embarqué dans le .js) -> public/opencv
+//  - moteur WASM de TensorFlow.js (secours quand WebGL manque) -> public/tfjs
 import { copyFileSync, mkdirSync, existsSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,6 +19,9 @@ const files = [
   ['stockfish/bin/stockfish-19-lite-single.js', 'engine/stockfish.js'],
   ['stockfish/bin/stockfish-19-lite-single.wasm', 'engine/stockfish.wasm'],
   ['@techstark/opencv-js/dist/opencv.js', 'opencv/opencv.js'],
+  ['@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm.wasm', 'tfjs/tfjs-backend-wasm.wasm'],
+  ['@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm-simd.wasm', 'tfjs/tfjs-backend-wasm-simd.wasm'],
+  ['@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm-threaded-simd.wasm', 'tfjs/tfjs-backend-wasm-threaded-simd.wasm'],
 ]
 for (const [from, to] of files) {
   const s = join(nm, from)

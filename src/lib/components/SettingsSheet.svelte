@@ -3,13 +3,18 @@
   import Sheet from './Sheet.svelte'
   import { settings, DEPTH_MIN, DEPTH_MAX } from '../state/settings.svelte'
   import { getEngine } from '../engine/stockfish'
+  import { getMl } from '../recognition/client'
 
   let { open, onclose }: { open: boolean; onclose: () => void } = $props()
 
   let engineName = $state('Stockfish')
+  let mlBackend = $state('')
   $effect(() => {
-    if (open) getEngine().ready.then(() => (engineName = getEngine().name), () => undefined)
+    if (!open) return
+    getEngine().ready.then(() => (engineName = getEngine().name), () => undefined)
+    getMl().ready.then((r) => (mlBackend = r.backend), () => (mlBackend = 'indisponible'))
   })
+  const BACKENDS: Record<string, string> = { webgl: 'carte graphique (WebGL)', wasm: 'processeur (WebAssembly)', cpu: 'processeur (lent)' }
 
   function step(d: number) {
     settings.depth = Math.min(DEPTH_MAX, Math.max(DEPTH_MIN, settings.depth + d))
@@ -55,6 +60,9 @@
     <h3 class="section-title">Confidentialité</h3>
     <p>Tout est calculé sur votre appareil : aucune image ni position n'est envoyée à un serveur.</p>
     <p class="mt-2 text-xs text-stone-500">Moteur : {engineName} (WebAssembly, GPL v3). Pièces : Cburnett, CC BY-SA 3.0.</p>
+    {#if mlBackend}
+      <p class="mt-1 text-xs text-stone-500" data-testid="ml-backend">Reconnaissance calculée sur : {BACKENDS[mlBackend] ?? mlBackend}.</p>
+    {/if}
   </section>
 </Sheet>
 

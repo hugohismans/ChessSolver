@@ -1,0 +1,65 @@
+{
+  "name": "Modèle de base",
+  "classes": [
+    "empty",
+    "P",
+    "N",
+    "B",
+    "R",
+    "Q",
+    "K",
+    "p",
+    "n",
+    "b",
+    "r",
+    "q",
+    "k"
+  ],
+  "tile": 96,
+  "features": 1280,
+  "preprocess": "x / 127.5 - 1",
+  "dataset": "Roboflow Chess Pieces (joseph-nelson/chess-pieces-new, v23, domaine public)",
+  "metrics": {
+    "valid": {
+      "accuracy": 0.9984,
+      "perfect_boards": 0.8966,
+      "errors_per_board": 0.1,
+      "per_class": {
+        "empty": 0.999,
+        "P": 1.0,
+        "N": 1.0,
+        "B": 0.955,
+        "R": 0.962,
+        "Q": 1.0,
+        "K": 1.0,
+        "p": 1.0,
+        "n": 1.0,
+        "b": 0.955,
+        "r": 1.0,
+        "q": 1.0,
+        "k": 1.0
+      }
+    },
+    "test": {
+      "accuracy": 0.993,
+      "perfect_boards": 0.6552,
+      "errors_per_board": 0.45,
+      "per_class": {
+        "empty": 0.996,
+        "P": 1.0,
+        "N": 0.96,
+        "B": 1.0,
+        "R": 1.0,
+        "Q": 0.929,
+        "K": 1.0,
+        "p": 1.0,
+        "n": 0.96,
+        "b": 1.0,
+        "r": 1.0,
+        "q": 0.714,
+        "k": 1.0
+      }
+    }
+  },
+  "created": "2026-10-15"
+}

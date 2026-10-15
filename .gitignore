@@ -2,6 +2,7 @@ node_modules
 dist
 public/engine
 public/opencv
+public/tfjs
 *.log
 .DS_Store
 training/.venv

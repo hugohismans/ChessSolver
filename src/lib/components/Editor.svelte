@@ -20,12 +20,71 @@
     type PieceChar,
   } from '../chess/position'
   import { pieceName } from '../chess/names'
+  import { recognition } from '../state/recognition.svelte'
+  import { profiles } from '../state/profiles.svelte'
+  import { createProfile, BASE_PROFILE } from '../recognition/storage'
 
   interface Props {
     onanalyse: (fen: string) => void
     onphoto: () => void
+    /** Calibration : bouton « Ajouter au profil » au lieu d'« Analyser ». */
+    calibration?: boolean
+    oncalibrated?: () => void
+    /** Affiche les vignettes reconnues (débogage). */
+    onsquares?: () => void
   }
-  let { onanalyse, onphoto }: Props = $props()
+  let { onanalyse, onphoto, calibration = false, oncalibrated, onsquares }: Props = $props()
+
+  // ---- Correction d'une photo reconnue ----
+  const reviewing = $derived(recognition.active)
+  const corrections = $derived(reviewing ? recognition.corrections(position.grid) : [])
+  const onBase = $derived(settings.activeProfile === BASE_PROFILE)
+  let saving = $state(false)
+  let toast = $state('')
+
+  function rotateRecognition() {
+    recognition.rotation = (recognition.rotation + 1) % 4
+    position.grid = recognition.recognized
+  }
+
+  /** Enregistre les corrections dans le profil actif (ou un nouveau). */
+  async function saveCorrections(): Promise<void> {
+    if (!reviewing || !recognition.saveCorrections || !corrections.length) return
+    let id = settings.activeProfile
+    if (id === BASE_PROFILE) {
+      const p = await createProfile('Mon jeu')
+      settings.activeProfile = p.id
+      id = p.id
+    }
+    const n = await recognition.save(id, position.grid, corrections, 'correction')
+    await profiles.refresh()
+    toast = `${n} correction${n > 1 ? 's' : ''} ajoutée${n > 1 ? 's' : ''} au profil « ${profiles.activeName} ».`
+    setTimeout(() => (toast = ''), 4000)
+  }
+
+  async function analyse() {
+    saving = true
+    try {
+      await saveCorrections()
+    } finally {
+      saving = false
+    }
+    recognition.active = false
+    onanalyse(position.validation.fen)
+  }
+
+  /** Calibration : les 64 cases vérifiées rejoignent le jeu d'exemples. */
+  async function addToProfile() {
+    saving = true
+    try {
+      await recognition.save(settings.activeProfile, position.grid, [...Array(64).keys()], 'position')
+      await profiles.refresh()
+      recognition.clear()
+      oncalibrated?.()
+    } finally {
+      saving = false
+    }
+  }
 
   // Outil actif : null = toucher une case ouvre le menu de choix,
   // une pièce = la poser directement, 'erase' = vider la case
@@ -96,9 +155,16 @@
     }
   }
 
-  // Surlignages : pions mal placés et roi en échec
+  // Surlignages : cases incertaines (reconnaissance), pions mal placés, roi en échec
   const highlights = $derived.by<Highlight[]>(() => {
     const out: Highlight[] = []
+    if (reviewing) {
+      const conf = recognition.confidence
+      const fixed = new Set(corrections)
+      conf.forEach((c, i) => {
+        if (c < 0.8 && !fixed.has(i)) out.push({ square: squareName(i), kind: 'uncertain' })
+      })
+    }
     position.grid.forEach((c, i) => {
       if ((c === 'P' || c === 'p') && (i < 8 || i >= 56)) out.push({ square: squareName(i), kind: 'error' })
     })
@@ -134,6 +200,33 @@
 </script>
 
 <div class="flex flex-col gap-3">
+  {#if reviewing}
+    <section class="rounded-2xl bg-teal-950/60 p-3 ring-1 ring-teal-800" aria-labelledby="revue">
+      <h2 id="revue" class="text-sm font-semibold text-teal-100">
+        {calibration ? 'Calibration : corrigez la position' : 'Position reconnue, à vérifier'}
+      </h2>
+      <p class="mt-0.5 text-xs text-teal-200/80">
+        Profil « {recognition.profileName} ». Touchez une case pour la corriger. Les cases encadrées en jaune sont incertaines.
+      </p>
+      <div class="mt-2 grid grid-cols-2 gap-2">
+        <button class="btn-secondary h-10!" onclick={rotateRecognition}>Tourner la photo</button>
+        {#if onsquares}<button class="btn-secondary h-10!" onclick={onsquares}>Voir les cases</button>{/if}
+      </div>
+      {#if !calibration}
+        <label class="mt-2 flex min-h-11 items-center gap-3 text-sm text-teal-50">
+          <input type="checkbox" class="h-5 w-5 shrink-0 accent-teal-400" bind:checked={recognition.saveCorrections} />
+          <span>
+            {#if onBase}
+              Enregistrer mes corrections ({corrections.length}) dans un nouveau profil « Mon jeu »
+            {:else}
+              Ajouter mes corrections ({corrections.length}) au profil « {profiles.activeName} »
+            {/if}
+          </span>
+        </label>
+      {/if}
+    </section>
+  {/if}
+
   <Board
     grid={position.grid}
     orientation={position.orientation}
@@ -263,22 +356,32 @@
     {/if}
   </div>
 
+  {#if toast}
+    <p class="rounded-xl bg-stone-800 px-4 py-3 text-sm text-stone-100" role="status">{toast}</p>
+  {/if}
+
   <!-- Bouton principal, collé en bas pour le pouce -->
   <div class="safe-bottom sticky bottom-0 -mx-4 bg-gradient-to-t from-stone-950 via-stone-950 to-stone-950/0 px-4 pt-4">
-    <div class="grid grid-cols-[1fr_2fr] gap-2">
+    <div class="grid gap-2 {calibration ? 'grid-cols-1' : 'grid-cols-[1fr_2fr]'}">
+      {#if !calibration}
       <button class="btn-secondary h-14! rounded-2xl! text-base!" onclick={onphoto}>
         <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><circle cx="12" cy="13" r="4" />
         </svg>
         Photo
       </button>
-      <button
-        class="btn-primary"
-        disabled={!position.validation.ok || position.validation.status === 'checkmate' || position.validation.status === 'stalemate'}
-        onclick={() => onanalyse(position.validation.fen)}
-      >
-        Analyser
-      </button>
+      {/if}
+      {#if calibration}
+        <button class="btn-primary" disabled={saving} onclick={addToProfile}>Ajouter au profil</button>
+      {:else}
+        <button
+          class="btn-primary"
+          disabled={saving || !position.validation.ok || position.validation.status === 'checkmate' || position.validation.status === 'stalemate'}
+          onclick={analyse}
+        >
+          Analyser
+        </button>
+      {/if}
     </div>
   </div>
 </div>

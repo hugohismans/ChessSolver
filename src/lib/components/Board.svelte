@@ -12,7 +12,7 @@
     width?: number // épaisseur relative (1 = normale)
     opacity?: number
   }
-  export type HighlightKind = 'selected' | 'target' | 'capture' | 'last' | 'check' | 'error'
+  export type HighlightKind = 'selected' | 'target' | 'capture' | 'last' | 'check' | 'error' | 'uncertain'
   export interface Highlight {
     square: string
     kind: HighlightKind
@@ -74,6 +74,7 @@
     last: 'rgba(250, 204, 21, 0.42)',
     check: 'rgba(239, 68, 68, 0.6)',
     error: 'rgba(239, 68, 68, 0.45)',
+    uncertain: 'rgba(250, 204, 21, 0.0)',
   }
 
   /** Polygone d'une flèche épaisse entre les centres de deux cases. */
@@ -172,6 +173,8 @@
     {@const p = pos(h.square)}
     {#if h.kind === 'target'}
       <circle cx={p.x + S / 2} cy={p.y + S / 2} r="15" fill="rgba(15, 118, 110, 0.55)" />
+    {:else if h.kind === 'uncertain'}
+      <rect x={p.x + 4} y={p.y + 4} width={S - 8} height={S - 8} fill="rgba(250, 204, 21, 0.18)" stroke="#facc15" stroke-width="6" stroke-dasharray="14 8" />
     {:else if h.kind === 'capture'}
       <circle cx={p.x + S / 2} cy={p.y + S / 2} r="44" fill="none" stroke="rgba(15, 118, 110, 0.6)" stroke-width="8" />
     {:else}

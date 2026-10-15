@@ -59,33 +59,3 @@ export function rotateSquare(src: HTMLCanvasElement, quarterTurns: number): HTML
   g.drawImage(src, -n / 2, -n / 2)
   return c
 }
-
-export interface Tile {
-  square: string // « a8 » ... « h1 »
-  index: number // index dans la grille FEN (0 = a8)
-  canvas: HTMLCanvasElement
-}
-
-/**
- * Découpe le plateau redressé (déjà tourné : blancs en bas) en 64 cases de
- * `size` px. `margin` = marge en cases incluse dans l'image source autour
- * du plateau. `above` = part de la case du dessus ajoutée à la vignette
- * (les pièces hautes débordent vers le haut sur les photos en biais).
- */
-export function extractTiles(board: HTMLCanvasElement, opts: { size?: number; margin?: number; above?: number } = {}): Tile[] {
-  const { size = 96, margin = 0, above = 0 } = opts
-  const sq = board.width / (8 + 2 * margin)
-  const tiles: Tile[] = []
-  for (let r = 0; r < 8; r++) {
-    for (let c = 0; c < 8; c++) {
-      const canvas = makeCanvas(size, size)
-      const g = ctx2d(canvas)
-      g.imageSmoothingQuality = 'high'
-      const x = (margin + c) * sq
-      const y = (margin + r - above) * sq
-      g.drawImage(board, x, y, sq, sq * (1 + above), 0, 0, size, size)
-      tiles.push({ square: `${'abcdefgh'[c]}${8 - r}`, index: r * 8 + c, canvas })
-    }
-  }
-  return tiles
-}

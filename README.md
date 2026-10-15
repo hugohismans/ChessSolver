@@ -10,7 +10,7 @@ serveur, aucune image ni position envoyée sur Internet.
 | --- | --- | --- |
 | 1 | Saisie manuelle de la position, Stockfish, meilleur coup | ✅ |
 | 2 | Caméra, détection du plateau (OpenCV.js), ajustement des coins | ✅ |
-| 3 | Reconnaissance des pièces (TF.js) et calibration de son propre jeu | à venir |
+| 3 | Reconnaissance des pièces (TF.js) et calibration de son propre jeu | ✅ |
 | 4 | PWA hors ligne, cache des modèles, finitions mobiles | à venir |
 
 ## Fonctionnalités (phase 1)
@@ -90,6 +90,92 @@ npx tsx scripts/eval-detection.ts /tmp/photos
 Huit de ces photos, parmi les plus difficiles, sont dans `tests/fixtures`
 et servent de tests automatiques (`npm test`).
 
+## Fonctionnalités (phase 3)
+
+- **Reconnaissance des pièces** : après validation des coins, les 64 cases
+  sont classées en 13 classes (vide + 6 pièces x 2 couleurs) par le modèle
+  du profil actif, dans un Web Worker (TensorFlow.js : WebGL, sinon
+  WebAssembly, sinon CPU). Environ une demi-seconde.
+- **Orientation automatique** : la case a1 est toujours foncée, les pions ne
+  sont jamais sur les rangées 1 et 8, les blancs sont en général en bas. Le
+  bouton « Tourner la photo » corrige si besoin.
+- **Écran de correction obligatoire** : la position reconnue s'affiche sur
+  l'éditeur, les cases incertaines (confiance < 80 %) sont encadrées en
+  jaune. Les corrections peuvent être ajoutées aux exemples du profil actif
+  (case cochée par défaut). « Voir les cases » montre les vignettes vues
+  par le modèle avec la pièce reconnue et la confiance.
+- **Calibrer mon jeu** (bouton en haut de l'écran Position) :
+  - profils multiples (« jeu en bois », « jeu de voyage »...), création,
+    renommage, suppression, bascule ;
+  - étape 1 : 5 à 10 photos de la position de départ, sous divers angles et
+    éclairages ; chaque photo donne 64 cases étiquetées automatiquement
+    (l'orientation est trouvée en comparant à la position de départ, et les
+    cases douteuses sont signalées avant ajout) ;
+  - étape 2 (facultative) : photos de positions quelconques, l'app propose
+    sa reconnaissance, l'utilisateur corrige, les 64 cases sont ajoutées ;
+  - bouton « Entraîner » : dans un Web Worker, avec barre de progression,
+    bouton Arrêter et précision mesurée sur des photos mises de côté,
+    comparée à celle du modèle de base ;
+  - augmentation de données (rotation légère, luminosité, contraste,
+    miroir, léger recadrage) ;
+  - stockage du modèle et des exemples dans IndexedDB ;
+  - export / import du profil dans un fichier `.chesscam` (tête du modèle +
+    exemples, compressé).
+
+### Le modèle
+
+Transfer learning en deux parties :
+
+- **extracteur** : MobileNetV2 (alpha 0,35, entrée 96x96) pré-entraîné sur
+  ImageNet, affiné sur le jeu de données de base, puis **gelé** dans l'app
+  (0,8 Mo, poids en float16) ;
+- **tête** : couches denses 1280 -> 128 -> 13, propre à chaque profil. La
+  calibration ne ré-entraîne que la tête, à partir de celle du modèle de
+  base : les vignettes (et leurs variantes augmentées) passent une seule
+  fois dans l'extracteur, puis la tête apprend sur les vecteurs obtenus.
+  C'est rapide même sur un téléphone.
+
+Chaque vignette couvre la case et la moitié de la case du dessus (dans le
+sens de la photo), car les pièces debout débordent vers le haut sur les
+photos prises en biais. Le même code de découpe (`src/lib/vision/tiles.ts`)
+sert à l'app et à la préparation des données d'entraînement.
+
+### Modèle de base et entraînement (dossier `training/`)
+
+Le modèle livré dans `public/models/base` est entraîné sur le jeu de
+données public Roboflow « Chess Pieces »
+(`joseph-nelson/chess-pieces-new`, version 23, 289 photos réelles annotées,
+domaine public). Résultats sur les photos de test (jamais vues) : 99,3 % des
+cases reconnues, 0,45 erreur par photo en moyenne. Ce jeu ne montre qu'un
+seul plateau et un seul jeu de pièces : pour un autre jeu, la calibration
+fait la différence.
+
+Pour ré-entraîner :
+
+```bash
+# 1. Télécharger le jeu de données (clé API Roboflow gratuite)
+export ROBOFLOW_API_KEY=...   # ne jamais l'écrire dans le dépôt
+curl -sL -o /tmp/rf.zip "$(curl -s "https://api.roboflow.com/joseph-nelson/chess-pieces-new/23/coco?api_key=$ROBOFLOW_API_KEY" \
+  | python3 -c "import sys, json; print(json.load(sys.stdin)['export']['link'])")"
+mkdir -p /tmp/rf && unzip -q /tmp/rf.zip -d /tmp/rf
+
+# 2. Construire les vignettes étiquetées (détection du plateau et découpe
+#    avec le code de l'app, attribution de chaque pièce annotée à sa case)
+npx tsx training/build-dataset.ts /tmp/rf training/data
+
+# 3. Entraîner et exporter au format TF.js (CPU : environ 5 minutes)
+python3 -m venv training/.venv
+training/.venv/bin/pip install -r training/requirements.txt
+training/.venv/bin/python training/train.py --data training/data --out public/models/base
+
+# 4. Vérifier que TF.js redonne les mêmes prédictions que Keras
+npx tsx training/check-export.ts
+```
+
+`train.py` utilise Keras 2 (`tf_keras`) pour que la topologie soit lisible
+par TensorFlow.js, et écrit lui-même le format « layers model » (pas besoin
+du paquet `tensorflowjs`, incompatible avec numpy 2).
+
 ## Démarrer
 
 Prérequis : Node.js 20 ou plus récent.
@@ -140,14 +226,23 @@ src/
   lib/vision/geometry.ts        homographies, quadrilatères
   lib/vision/vision.worker.ts   worker : chargement d'OpenCV, détection, redressement
   lib/vision/client.ts          appels au worker depuis l'interface
-  lib/vision/image.ts           canvas : photo, rotation, découpe des 64 cases
+  lib/vision/image.ts           canvas : photo, rotation
+  lib/vision/tiles.ts           découpe des 64 vignettes (app et entraînement), repères
+  lib/recognition/ml.worker.ts  worker TF.js : reconnaissance et entraînement
+  lib/recognition/storage.ts    IndexedDB : profils, exemples, export / import
+  lib/recognition/orient.ts     orientation automatique du plateau
+  lib/recognition/run.ts        enchaînement photo -> position
   lib/state/*.svelte.ts         état partagé (runes) : position, réglages, photo
   lib/components/Board.svelte   échiquier SVG : pièces, flèches, surlignages, toucher
   lib/components/Editor.svelte  écran de saisie / correction
   lib/components/Analysis.svelte écran d'analyse
   lib/components/Camera.svelte  écran photo (caméra, galerie, repérage en direct)
   lib/components/Corners.svelte écran des coins (détection + CornerEditor)
-  lib/components/Squares.svelte écran des cases (redressement, rotation, 64 vignettes)
+  lib/components/Squares.svelte écran des cases reconnues (débogage)
+  lib/components/Calibration.svelte      écran « Calibrer mon jeu »
+  lib/components/CalibrationCheck.svelte vérification d'une photo de départ
+training/                       préparation des données, entraînement, export TF.js
+public/models/base/             modèle de base (extracteur + tête, format TF.js)
 tests/                          tests Vitest (+ photos de synthèse dans fixtures/)
 scripts/copy-vendor.mjs         copie de Stockfish et d'OpenCV.js dans public/
 scripts/eval-detection.ts       mesure de précision de la détection
@@ -168,3 +263,5 @@ dépendance. Il réutilise le sprite de pièces de cm-chessboard.
   cm-chessboard (MIT).
 - chess.js : BSD 2-Clause.
 - OpenCV.js : Apache 2.0.
+- TensorFlow.js : Apache 2.0. MobileNetV2 (poids ImageNet de Keras) : Apache 2.0.
+- Jeu de données Roboflow « Chess Pieces » : domaine public.

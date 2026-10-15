@@ -4,12 +4,14 @@
 
 import { detectBoard, warpBoard, type CV, type RGBAImage } from './detect'
 import type { Quad } from './geometry'
+import { extractTiles } from './tiles'
 
 export type VisionRequest =
   | { type: 'init'; url: string }
   | { type: 'setImage'; image: RGBAImage }
   | { type: 'detect'; image?: RGBAImage }
   | { type: 'warp'; quad: Quad; size: number; margin: number }
+  | { type: 'tiles'; quad: Quad }
 
 let cv: CV | null = null
 let photo: RGBAImage | null = null
@@ -38,6 +40,12 @@ ctx.onmessage = async (e: MessageEvent<{ id: number; req: VisionRequest }>) => {
         if (!cv || !photo) throw new Error('OpenCV ou image absent')
         const out = warpBoard(cv, photo, req.quad, req.size, req.margin)
         ctx.postMessage({ id, result: out }, [out.data.buffer])
+        break
+      }
+      case 'tiles': {
+        if (!cv || !photo) throw new Error('OpenCV ou image absent')
+        const tiles = extractTiles(cv, photo, req.quad)
+        ctx.postMessage({ id, result: tiles }, [tiles.buffer])
         break
       }
     }

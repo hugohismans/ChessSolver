@@ -18,6 +18,7 @@ const count = Number(process.argv[2] || 8)
 const outDir = path.resolve(process.argv[3] || __dirname)
 const seedOffset = Number(process.argv[4] || 0)
 const maxRot = Number(process.argv[5] || 0.25)
+const fixedFen = process.argv[6] // position imposée (facultatif)
 
 // Chaque pièce du sprite devient un SVG autonome
 const sprite = fs.readFileSync(path.join(root, 'src/assets/pieces.svg'), 'utf8')
@@ -44,7 +45,7 @@ async function main() {
   })
   fs.mkdirSync(outDir, { recursive: true })
   for (let n = 0; n < count; n++) {
-    const res = await page.evaluate(render, { seed: n + 1 + seedOffset, pieces, fen: POSITIONS[n % POSITIONS.length], maxRot })
+    const res = await page.evaluate(render, { seed: n + 1 + seedOffset, pieces, fen: fixedFen || POSITIONS[n % POSITIONS.length], maxRot })
     const name = `board-${String(n + 1).padStart(2, '0')}`
     fs.writeFileSync(path.join(outDir, `${name}.jpg`), Buffer.from(res.jpg.split(',')[1], 'base64'))
     fs.writeFileSync(path.join(outDir, `${name}.json`), JSON.stringify({ quad: res.quad, fen: res.fen, params: res.params }, null, 2))

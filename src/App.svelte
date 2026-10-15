@@ -1,6 +1,7 @@
 <!--
   Racine de l'application : en-tête et navigation entre les écrans.
-  Flux photo : Photo -> Coins -> Cases -> Position (correction) -> Analyse.
+  Flux photo : Photo -> Coins -> reconnaissance -> Position (correction) -> Analyse.
+  Calibration : Calibrer -> Photo -> Coins -> Vérifier (départ) ou Corriger (position).
   Chaque écran empile une entrée d'historique : le bouton « retour » du
   téléphone revient à l'écran précédent au lieu de quitter l'app.
 -->
@@ -12,6 +13,13 @@
   import Corners from './lib/components/Corners.svelte'
   import Squares from './lib/components/Squares.svelte'
   import SettingsSheet from './lib/components/SettingsSheet.svelte'
+  import Calibration from './lib/components/Calibration.svelte'
+  import CalibrationCheck from './lib/components/CalibrationCheck.svelte'
+  import { recognition } from './lib/state/recognition.svelte'
+  import { profiles } from './lib/state/profiles.svelte'
+  import { recognizeCapture } from './lib/recognition/run'
+  import { getMl } from './lib/recognition/client'
+  import type { CapturePurpose } from './lib/state/capture.svelte'
   import { position } from './lib/state/position.svelte'
   import { settings } from './lib/state/settings.svelte'
   import { capture } from './lib/state/capture.svelte'
@@ -23,13 +31,19 @@
     | { name: 'camera' }
     | { name: 'corners' }
     | { name: 'squares' }
+    | { name: 'calibrate' }
+    | { name: 'calib-check' }
+    | { name: 'correct' }
 
   const TITLES: Record<Screen['name'], string> = {
     edit: 'Position',
     analyse: 'Analyse',
     camera: 'Photo',
     corners: 'Coins du plateau',
-    squares: 'Cases',
+    squares: 'Cases reconnues',
+    calibrate: 'Calibrer mon jeu',
+    'calib-check': 'Vérifier la photo',
+    correct: 'Corriger la position',
   }
 
   let screen = $state<Screen>({ name: 'edit' })
@@ -43,7 +57,14 @@
 
   // Mémorisation locale des réglages et de la position
   $effect(() => settings.persist())
-  $effect(() => position.persist())
+  $effect(() => {
+    // Pendant une calibration, la grille sert à corriger la photo : on ne
+    // remplace pas la position mémorisée de l'utilisateur
+    if (screen.name !== 'correct') position.persist()
+  })
+  $effect(() => {
+    profiles.refresh()
+  })
 
   /** Va vers un écran en ajoutant une entrée d'historique. */
   function go(next: Screen) {
@@ -71,13 +92,63 @@
     window.scrollTo({ top: 0 })
   }
 
+  /** Revient à la profondeur `d` de la pile d'écrans. */
+  function popTo(d: number) {
+    const delta = d - depth()
+    if (delta < 0) history.go(delta)
+  }
+
   function onpopstate(e: PopStateEvent) {
     const s = e.state?.screen as Screen | undefined
+    leaveCorrection(s?.name)
     // Écrans photo sans photo en mémoire (page rechargée) : retour à l'éditeur
-    if (!s || ((s.name === 'corners' || s.name === 'squares') && !capture.photo)) screen = { name: 'edit' }
+    const needsPhoto = s && ['corners', 'squares', 'calib-check', 'correct'].includes(s.name)
+    if (!s || (needsPhoto && !capture.photo)) screen = { name: 'edit' }
     else if (s.name === 'analyse') screen = { ...s, key: ++analyseKey }
     else screen = s
     window.scrollTo({ top: 0 })
+  }
+
+  // Position de l'utilisateur mise de côté pendant une correction de calibration
+  let stashedFen: string | null = null
+  function leaveCorrection(next?: string) {
+    if (screen.name === 'correct' && next !== 'squares' && stashedFen) {
+      position.setFen(stashedFen)
+      stashedFen = null
+      recognition.clear()
+    }
+    if (screen.name === 'calib-check' && next !== 'calib-check') recognition.clear()
+  }
+
+  function openCamera(purpose: CapturePurpose) {
+    capture.purpose = purpose
+    // Préchargement du modèle de reconnaissance pendant la prise de vue
+    getMl()
+    go({ name: 'camera' })
+  }
+
+  /** Coins validés : reconnaissance des pièces, puis écran selon le but. */
+  async function cornersValidated() {
+    const purpose = capture.purpose
+    await recognizeCapture(purpose === 'play' ? 'normal' : 'calibration', purpose === 'calib-start')
+    if (purpose === 'calib-start') {
+      go({ name: 'calib-check' })
+    } else if (purpose === 'calib-position') {
+      stashedFen = position.validation.fen
+      position.grid = recognition.recognized
+      go({ name: 'correct' })
+    } else {
+      position.grid = recognition.recognized
+      position.meta = { turn: 'w', castling: { K: true, Q: true, k: true, q: true }, enPassant: null }
+      recognition.saveCorrections = true
+      home()
+    }
+  }
+
+  /** Fin d'une étape de calibration : retour à l'écran Calibrer. */
+  function calibrationStepDone() {
+    leaveCorrection()
+    popTo(1)
   }
 
   function goAnalyse(fen: string) {
@@ -101,10 +172,6 @@
     replace({ name: 'camera' })
   }
 
-  function squaresDone() {
-    // Phase 2 : pas encore de reconnaissance, on passe à la saisie
-    home()
-  }
 </script>
 
 <svelte:window {onpopstate} />
@@ -126,6 +193,17 @@
       <h1 class="text-xl font-bold tracking-tight">Chess<span class="text-teal-400">Cam</span></h1>
     {/if}
     <span class="flex-1"></span>
+    {#if screen.name === 'edit'}
+      <button
+        class="flex h-12 items-center gap-1.5 rounded-xl px-3 text-sm text-stone-300 active:bg-stone-800"
+        onclick={() => go({ name: 'calibrate' })}
+      >
+        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 21h6M10 17h4l1-6 2-2-2-4h-6l-2 4 2 2z" />
+        </svg>
+        <span class="max-w-28 truncate">{profiles.activeName}</span>
+      </button>
+    {/if}
     <button
       class="-mr-2 flex h-12 w-12 items-center justify-center rounded-xl text-stone-300 active:bg-stone-800"
       aria-label="Réglages"
@@ -140,7 +218,7 @@
 
   <main class="flex-1">
     {#if screen.name === 'edit'}
-      <Editor onanalyse={goAnalyse} onphoto={() => go({ name: 'camera' })} />
+      <Editor onanalyse={goAnalyse} onphoto={() => openCamera('play')} onsquares={() => go({ name: 'squares' })} />
     {:else if screen.name === 'analyse'}
       {#key screen.key}
         <Analysis startFen={screen.fen} onedit={backToEditor} />
@@ -148,9 +226,21 @@
     {:else if screen.name === 'camera'}
       <Camera {onphoto} />
     {:else if screen.name === 'corners'}
-      <Corners onvalidate={() => go({ name: 'squares' })} onretake={retake} />
+      <Corners onvalidate={cornersValidated} onretake={retake} />
     {:else if screen.name === 'squares'}
-      <Squares onback={() => history.back()} onnext={squaresDone} />
+      <Squares onback={() => history.back()} />
+    {:else if screen.name === 'calibrate'}
+      <Calibration onstartphoto={() => openCamera('calib-start')} onpositionphoto={() => openCamera('calib-position')} />
+    {:else if screen.name === 'calib-check'}
+      <CalibrationCheck ondone={calibrationStepDone} oncancel={calibrationStepDone} />
+    {:else if screen.name === 'correct'}
+      <Editor
+        calibration
+        onanalyse={() => undefined}
+        onphoto={() => undefined}
+        oncalibrated={calibrationStepDone}
+        onsquares={() => go({ name: 'squares' })}
+      />
     {/if}
   </main>
 </div>
