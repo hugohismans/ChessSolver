@@ -80,3 +80,15 @@ describe('validation', () => {
     expect(v('7k/5Q2/6K1/8/8/8/8/8 b - - 0 1').status).toBe('stalemate')
   })
 })
+
+describe('rotation des pièces', () => {
+  it('un demi-tour échange a1 et h8, quatre quarts de tour ne changent rien', async () => {
+    const { rotateGrid } = await import('../src/lib/chess/position')
+    const { grid } = parseFen('7k/8/8/8/8/8/8/K7 w - - 0 1') // roi blanc a1, roi noir h8
+    const half = rotateGrid(grid, 2)
+    expect(half[squareIndex('h8')]).toBe('K')
+    expect(half[squareIndex('a1')]).toBe('k')
+    expect(rotateGrid(rotateGrid(grid, 1), 3)).toEqual(grid)
+    expect(rotateGrid(grid, 1)[squareIndex('a8')]).toBe('K') // quart de tour horaire : a1 -> a8
+  })
+})

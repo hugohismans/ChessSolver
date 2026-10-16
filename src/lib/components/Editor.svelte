@@ -14,6 +14,7 @@
     START_FEN,
     emptyGrid,
     parseFen,
+    rotateGrid,
     squareIndex,
     squareName,
     type Cell,
@@ -44,10 +45,19 @@
   let saving = $state(false)
   let toast = $state('')
 
-  function rotateRecognition() {
-    recognition.rotate()
-    position.grid = recognition.recognized
+  /**
+   * Fait pivoter les pièces de `quarterTurns` quarts de tour (horaires).
+   * Pendant la vérification d'une photo, la reconnaissance pivote avec la
+   * grille : les corrections déjà faites restent valables.
+   */
+  function rotatePieces(quarterTurns: number) {
+    position.grid = rotateGrid(position.grid, quarterTurns)
+    if (reviewing) for (let t = 0; t < quarterTurns; t++) recognition.rotate()
+    // La prise en passant n'a plus de sens (les roques sont revérifiés seuls)
+    position.meta = { ...position.meta, enPassant: null }
+    orientOpen = false
   }
+  let orientOpen = $state(false)
 
   const nViews = $derived(recognition.views.length)
 
@@ -237,7 +247,7 @@
         {/if}
       {/if}
       <div class="mt-2 grid gap-2 {nViews > 1 ? 'grid-cols-3' : 'grid-cols-2'}">
-        <button class="btn-secondary h-10!" onclick={rotateRecognition}>Tourner</button>
+        <button class="btn-secondary h-10!" onclick={() => (orientOpen = true)}>Orienter</button>
         {#if onsquares}<button class="btn-secondary h-10!" onclick={onsquares}>Voir les cases</button>{/if}
         {#if nViews > 1}
           <button class="btn-secondary h-10!" onclick={removeLastPhoto}>Retirer la photo {nViews}</button>
@@ -304,7 +314,7 @@
   <div class="grid grid-cols-4 gap-2">
     <button class="btn-secondary" onclick={reset}>Départ</button>
     <button class="btn-secondary" onclick={clear}>Vider</button>
-    <button class="btn-secondary" onclick={flip}>Retourner</button>
+    <button class="btn-secondary" onclick={() => (orientOpen = true)}>Orienter</button>
     <button class="btn-secondary" onclick={openFen}>FEN</button>
   </div>
 
@@ -427,6 +437,29 @@
       }}
     />
   {/if}
+</Sheet>
+
+<Sheet open={orientOpen} title="Orientation" onclose={() => (orientOpen = false)}>
+  <div class="flex flex-col gap-2">
+    <button class="btn-secondary h-auto! min-h-14 flex-col items-start! px-4! py-2.5 text-left" onclick={() => rotatePieces(2)}>
+      <span class="text-base font-semibold">Pivoter les pièces d'un demi-tour</span>
+      <span class="font-normal text-stone-400">Le plateau était à l'envers : a1 et h8 échangés, les blancs repassent en bas.</span>
+    </button>
+    <button class="btn-secondary h-auto! min-h-14 flex-col items-start! px-4! py-2.5 text-left" onclick={() => rotatePieces(1)}>
+      <span class="text-base font-semibold">Pivoter les pièces d'un quart de tour</span>
+      <span class="font-normal text-stone-400">Photo prise depuis le côté du plateau.</span>
+    </button>
+    <button
+      class="btn-secondary h-auto! min-h-14 flex-col items-start! px-4! py-2.5 text-left"
+      onclick={() => {
+        flip()
+        orientOpen = false
+      }}
+    >
+      <span class="text-base font-semibold">Voir depuis le côté {position.orientation === 'w' ? 'des noirs' : 'des blancs'}</span>
+      <span class="font-normal text-stone-400">Change seulement l'affichage, la position ne bouge pas.</span>
+    </button>
+  </div>
 </Sheet>
 
 <Sheet open={fenOpen} title="Position au format FEN" onclose={() => (fenOpen = false)}>

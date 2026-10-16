@@ -232,7 +232,17 @@ export function validatePosition(grid: Grid, meta: PositionMeta): Validation {
   return { fen, ok: true, errors, status }
 }
 
-/** Retourne la grille vue de l'autre côté (utile pour l'orientation photo). */
-export function rotateGrid(grid: Grid): Grid {
-  return [...grid].reverse()
+/**
+ * Fait pivoter les pièces d'un quart de tour dans le sens horaire (vu du
+ * côté des blancs) : la pièce en a8 va en h8, celle en h8 en h1, etc.
+ * Deux quarts de tour échangent a1 et h8 (plateau photographié à l'envers).
+ */
+export function rotateGrid(grid: Grid, quarterTurns = 2): Grid {
+  let g = [...grid]
+  for (let t = 0; t < (((quarterTurns % 4) + 4) % 4); t++) {
+    const next: Grid = Array(64).fill(null)
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) next[c * 8 + (7 - r)] = g[r * 8 + c]
+    g = next
+  }
+  return g
 }

@@ -96,9 +96,12 @@ et servent de tests automatiques (`npm test`).
   sont classées en 13 classes (vide + 6 pièces x 2 couleurs) par le modèle
   du profil actif, dans un Web Worker (TensorFlow.js : WebGL, sinon
   WebAssembly, sinon CPU). Environ une demi-seconde.
-- **Orientation automatique** : la case a1 est toujours foncée, les pions ne
-  sont jamais sur les rangées 1 et 8, les blancs sont en général en bas. Le
-  bouton « Tourner la photo » corrige si besoin.
+- **Orientation automatique** : la case a1 est normalement foncée, les pions
+  ne sont jamais sur les rangées 1 et 8 et restent surtout dans leur camp,
+  les blancs sont en général en bas. Aucun indice n'est absolu (un plateau
+  est souvent posé de travers) : le bouton « Orienter » de l'écran Position
+  fait pivoter les pièces d'un demi-tour (plateau à l'envers) ou d'un
+  quart de tour, ou change seulement le côté d'affichage.
 - **Écran de correction obligatoire** : la position reconnue s'affiche sur
   l'éditeur, les cases incertaines (confiance < 80 %) sont encadrées en
   jaune. Les corrections peuvent être ajoutées aux exemples du profil actif

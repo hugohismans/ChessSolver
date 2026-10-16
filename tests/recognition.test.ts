@@ -125,3 +125,19 @@ describe('plusieurs photos de la même position', () => {
     expect(c3.indexOf(Math.max(...c3))).toBe(0) // vide, à 2 voix contre 1
   })
 })
+
+describe('orientation : fin de partie et plateau posé de travers', () => {
+  it('fin de partie : les pions dans leur camp décident', () => {
+    const end = parseFen('3r4/p4ppp/1p6/5K2/1P5P/P2b1q2/2P2PP1/6k1 w - - 0 1').grid.map(cellToClass)
+    for (let r = 0; r < 4; r++) expect(guessRotation(fakeProbs(end, r), fakeTiles(r))).toBe(r)
+  })
+
+  it('plateau posé de travers (a1 claire) : les pièces l’emportent sur la couleur des cases', () => {
+    const start = START_LABELS
+    // Tuiles dont la parité est décalée d'une case : a1 apparaît claire
+    for (let r = 0; r < 4; r++) {
+      const tiles = fakeTiles((r + 1) % 4)
+      expect(guessRotation(fakeProbs(start, r), tiles)).toBe(r)
+    }
+  })
+})

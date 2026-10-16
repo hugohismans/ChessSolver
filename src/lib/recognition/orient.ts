@@ -1,10 +1,13 @@
 // Orientation automatique du plateau photographié (où sont les blancs ?).
 //
-// Indices utilisés, du plus sûr au moins sûr :
-//  1. la case a1 est toujours foncée (« blanc à droite ») : on repère la
-//     couleur des cases sur les vignettes, ce qui élimine 2 rotations sur 4 ;
+// Indices utilisés (aucun n'est absolu, l'utilisateur peut toujours
+// corriger avec « Orienter ») :
+//  1. la case a1 est normalement foncée (« blanc à droite ») : on repère la
+//     couleur des cases sur les vignettes. Indice fort mais pas certain, car
+//     un plateau est souvent posé de travers ;
 //  2. les pions ne sont jamais sur la 1re ni la 8e rangée ;
-//  3. en général les pièces blanches sont plutôt du côté des rangées 1-2
+//  3. les pions restent surtout dans leur propre camp ;
+//  4. en général les pièces blanches sont plutôt du côté des rangées 1-2
 //     (le joueur photographie souvent depuis sa place).
 
 import { CLASSES, NUM_CLASSES } from './classes'
@@ -44,17 +47,19 @@ export function guessRotation(probs: Float32Array, tiles: Uint8Array): number {
 
   const scores = [0, 1, 2, 3].map((rot) => {
     let s = 0
-    // 1. a1 (index 56) doit être une case foncée
+    // 1. a1 (index 56) devrait être une case foncée
     const a1 = boardIndexToPhoto(56, rot)
     const a1Light = (Math.floor(a1 / 8) + (a1 % 8)) % 2 === lightParity
-    if (contrast > 12) s += a1Light ? -100 : 100
-    // 2 et 3. Pièces : pions hors des rangées 1 et 8, blancs plutôt en bas
+    if (contrast > 12) s += a1Light ? -6 : 6
+    // 2, 3 et 4. Pions hors des rangées 1 et 8 et dans leur camp, blancs plutôt en bas
     for (let i = 0; i < 64; i++) {
       const b = photoToBoard(i, rot)
       const row = Math.floor(b / 8) // 0 = 8e rangée, 7 = 1re rangée
       const p = probs.subarray(i * NUM_CLASSES, (i + 1) * NUM_CLASSES)
-      const pawn = p[CLASSES.indexOf('P')] + p[CLASSES.indexOf('p')]
-      if (row === 0 || row === 7) s -= 20 * pawn
+      const pw = p[CLASSES.indexOf('P')]
+      const pb = p[CLASSES.indexOf('p')]
+      if (row === 0 || row === 7) s -= 20 * (pw + pb)
+      s += 1.5 * (pw - pb) * (row - 3.5)
       let white = 0
       let black = 0
       for (let c = 1; c <= 6; c++) white += p[c]
