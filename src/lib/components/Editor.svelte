@@ -20,7 +20,7 @@
     type PieceChar,
   } from '../chess/position'
   import { pieceName } from '../chess/names'
-  import { recognition } from '../state/recognition.svelte'
+  import { recognition, MAX_VIEWS } from '../state/recognition.svelte'
   import { profiles } from '../state/profiles.svelte'
   import { createProfile, BASE_PROFILE } from '../recognition/storage'
 
@@ -32,8 +32,10 @@
     oncalibrated?: () => void
     /** Affiche les vignettes reconnues (débogage). */
     onsquares?: () => void
+    /** Photo supplémentaire de la même position, pour fiabiliser la reconnaissance. */
+    onaddphoto?: () => void
   }
-  let { onanalyse, onphoto, calibration = false, oncalibrated, onsquares }: Props = $props()
+  let { onanalyse, onphoto, calibration = false, oncalibrated, onsquares, onaddphoto }: Props = $props()
 
   // ---- Correction d'une photo reconnue ----
   const reviewing = $derived(recognition.active)
@@ -43,8 +45,20 @@
   let toast = $state('')
 
   function rotateRecognition() {
-    recognition.rotation = (recognition.rotation + 1) % 4
+    recognition.rotate()
     position.grid = recognition.recognized
+  }
+
+  const nViews = $derived(recognition.views.length)
+
+  /** Retire la dernière photo, en gardant les corrections faites à la main. */
+  function removeLastPhoto() {
+    const before = recognition.recognized
+    const manual = position.grid.map((c, i) => (c !== before[i] ? i : -1)).filter((i) => i >= 0)
+    recognition.removeLast()
+    const g = recognition.recognized
+    for (const i of manual) g[i] = position.grid[i]
+    position.grid = g
   }
 
   /** Enregistre les corrections dans le profil actif (ou un nouveau). */
@@ -206,11 +220,28 @@
         {calibration ? 'Calibration : corrigez la position' : 'Position reconnue, à vérifier'}
       </h2>
       <p class="mt-0.5 text-xs text-teal-200/80">
-        Profil « {recognition.profileName} ». Touchez une case pour la corriger. Les cases encadrées en jaune sont incertaines.
+        Profil « {recognition.profileName} »{nViews > 1 ? `, ${nViews} photos combinées` : ''}. Touchez une case pour la
+        corriger. Les cases encadrées en jaune sont incertaines.
       </p>
-      <div class="mt-2 grid grid-cols-2 gap-2">
-        <button class="btn-secondary h-10!" onclick={rotateRecognition}>Tourner la photo</button>
+      {#if onaddphoto && !calibration && nViews < MAX_VIEWS}
+        <button class="btn-secondary mt-2 h-11! w-full bg-teal-900! text-teal-50!" onclick={onaddphoto}>
+          <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><circle cx="12" cy="13" r="4" />
+          </svg>
+          Ajouter une photo ({nViews}/{MAX_VIEWS})
+        </button>
+        {#if nViews === 1}
+          <p class="mt-1 text-xs text-teal-200/70">
+            Une 2e photo, idéalement prise d'un autre côté du plateau, corrige la plupart des erreurs.
+          </p>
+        {/if}
+      {/if}
+      <div class="mt-2 grid gap-2 {nViews > 1 ? 'grid-cols-3' : 'grid-cols-2'}">
+        <button class="btn-secondary h-10!" onclick={rotateRecognition}>Tourner</button>
         {#if onsquares}<button class="btn-secondary h-10!" onclick={onsquares}>Voir les cases</button>{/if}
+        {#if nViews > 1}
+          <button class="btn-secondary h-10!" onclick={removeLastPhoto}>Retirer la photo {nViews}</button>
+        {/if}
       </div>
       {#if !calibration}
         <label class="mt-2 flex min-h-11 items-center gap-3 text-sm text-teal-50">

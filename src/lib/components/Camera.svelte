@@ -9,6 +9,7 @@
   import { canvasFromFile, toCanvas } from '../vision/image'
   import type { Quad } from '../vision/geometry'
   import { keepAwake, haptic } from '../wakelock'
+  import { capture } from '../state/capture.svelte'
 
   interface Props {
     onphoto: (photo: HTMLCanvasElement) => void
@@ -205,7 +206,11 @@
     <p class="rounded-xl bg-amber-950/60 px-4 py-3 text-sm text-amber-200 ring-1 ring-amber-900">{error}</p>
   {:else}
     <p class="text-center text-sm text-stone-400">
-      Photographiez le plateau d'assez haut, en entier, sans reflet. Un léger angle ne gêne pas.
+      {#if capture.purpose === 'play-extra'}
+        Photo supplémentaire de la même position : de préférence d'un autre côté du plateau.
+      {:else}
+        Photographiez le plateau d'assez haut, en entier, sans reflet. Un léger angle ne gêne pas.
+      {/if}
     </p>
   {/if}
 

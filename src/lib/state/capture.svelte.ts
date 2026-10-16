@@ -5,7 +5,7 @@ import type { Quad } from '../vision/geometry'
 import type { DetectResult } from '../vision/detect'
 
 /** Pourquoi la photo est prise : jouer, ou calibrer le profil actif. */
-export type CapturePurpose = 'play' | 'calib-start' | 'calib-position'
+export type CapturePurpose = 'play' | 'play-extra' | 'calib-start' | 'calib-position'
 
 class Capture {
   purpose = $state<CapturePurpose>('play')

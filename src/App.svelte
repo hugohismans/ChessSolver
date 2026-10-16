@@ -17,7 +17,7 @@
   import CalibrationCheck from './lib/components/CalibrationCheck.svelte'
   import { recognition } from './lib/state/recognition.svelte'
   import { profiles } from './lib/state/profiles.svelte'
-  import { recognizeCapture } from './lib/recognition/run'
+  import { recognizeCapture, addCaptureView } from './lib/recognition/run'
   import { getMl } from './lib/recognition/client'
   import type { CapturePurpose } from './lib/state/capture.svelte'
   import PwaToast from './lib/components/PwaToast.svelte'
@@ -56,6 +56,8 @@
   $effect(() => {
     getEngine()
     pwa.init()
+    // Accès de diagnostic pour les tests automatisés (adresse terminée par #debug)
+    if (location.hash.includes('debug')) (window as unknown as { chesscamDebug: unknown }).chesscamDebug = { recognition }
   })
 
   // Mémorisation locale des réglages et de la position
@@ -133,6 +135,17 @@
   /** Coins validés : reconnaissance des pièces, puis écran selon le but. */
   async function cornersValidated() {
     const purpose = capture.purpose
+    if (purpose === 'play-extra') {
+      // Photo supplémentaire : on garde les corrections déjà faites à la main
+      const before = recognition.recognized
+      const manual = position.grid.map((c, i) => (c !== before[i] ? i : -1)).filter((i) => i >= 0)
+      await addCaptureView()
+      const g = recognition.recognized
+      for (const i of manual) g[i] = position.grid[i]
+      position.grid = g
+      home()
+      return
+    }
     await recognizeCapture(purpose === 'play' ? 'normal' : 'calibration', purpose === 'calib-start')
     if (purpose === 'calib-start') {
       go({ name: 'calib-check' })
@@ -229,7 +242,12 @@
 
   <main class="flex-1">
     {#if screen.name === 'edit'}
-      <Editor onanalyse={goAnalyse} onphoto={() => openCamera('play')} onsquares={() => go({ name: 'squares' })} />
+      <Editor
+        onanalyse={goAnalyse}
+        onphoto={() => openCamera('play')}
+        onsquares={() => go({ name: 'squares' })}
+        onaddphoto={() => openCamera('play-extra')}
+      />
     {:else if screen.name === 'analyse'}
       {#key screen.key}
         <Analysis startFen={screen.fen} onedit={backToEditor} />

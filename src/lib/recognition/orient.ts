@@ -86,3 +86,24 @@ export function rotationForStart(probs: Float32Array, startLabels: number[]): nu
   })
   return scores.indexOf(Math.max(...scores))
 }
+
+/**
+ * Rotation d'une photo supplémentaire de la même position : celle qui
+ * s'accorde le mieux avec ce que les photos précédentes ont reconnu
+ * (`fused`, probabilités dans le repère échiquier). Peu importe de quel côté
+ * du plateau la nouvelle photo a été prise.
+ */
+export function rotationToMatch(probs: Float32Array, fused: Float32Array): number {
+  const scores = [0, 1, 2, 3].map((rot) => {
+    let s = 0
+    for (let i = 0; i < 64; i++) {
+      const b = photoToBoard(i, rot)
+      // Probabilité que les deux vues voient la même chose sur cette case
+      let agree = 0
+      for (let k = 0; k < NUM_CLASSES; k++) agree += probs[i * NUM_CLASSES + k] * fused[b * NUM_CLASSES + k]
+      s += Math.log(agree + 1e-4)
+    }
+    return s
+  })
+  return scores.indexOf(Math.max(...scores))
+}

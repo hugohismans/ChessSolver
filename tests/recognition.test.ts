@@ -88,3 +88,40 @@ describe('découpe des vignettes', () => {
     expect(Math.abs(med(even) - med(odd))).toBeGreaterThan(30)
   })
 })
+
+describe('plusieurs photos de la même position', () => {
+  it('retrouve la rotation d’une 2e photo prise d’un autre côté', async () => {
+    const { fuseViews } = await import('../src/lib/state/recognition.svelte')
+    const { rotationToMatch } = await import('../src/lib/recognition/orient')
+    const mid = parseFen('r1bq1rk1/pp2bppp/2n1pn2/3p4/3P4/2NBPN2/PP3PPP/R2QK2R w KQ - 0 1').grid.map(cellToClass)
+    const first = fuseViews([{ probs: fakeProbs(mid, 0), rotation: 0 }])
+    for (let r = 0; r < 4; r++) expect(rotationToMatch(fakeProbs(mid, r), first)).toBe(r)
+  })
+
+  it('la fusion corrige une case fausse sur une seule photo', async () => {
+    const { fuseViews } = await import('../src/lib/state/recognition.svelte')
+    const labels = START_LABELS
+    // Photo 1 : un « fantôme » de cavalier sur c3 (case vide en réalité)
+    const ghost = [...labels]
+    ghost[42] = cellToClass('N')
+    const p1 = fakeProbs(ghost, 0)
+    // Photo 2 (de l'autre côté), juste ; photo 3, juste aussi
+    const p2 = fakeProbs(labels, 2)
+    const p3 = fakeProbs(labels, 1)
+    const f2 = fuseViews([
+      { probs: p1, rotation: 0 },
+      { probs: p2, rotation: 2 },
+    ])
+    // Deux photos en désaccord : confiance basse, la case sera signalée (< 80 %)
+    expect(Math.max(...f2.subarray(42 * NUM_CLASSES, 43 * NUM_CLASSES))).toBeLessThan(0.6)
+    // Les cases où elles s'accordent restent au-dessus du seuil de signalement (80 %)
+    expect(f2[0 * NUM_CLASSES + cellToClass('r')]).toBeGreaterThan(0.8)
+    const f3 = fuseViews([
+      { probs: p1, rotation: 0 },
+      { probs: p2, rotation: 2 },
+      { probs: p3, rotation: 1 },
+    ])
+    const c3 = Array.from(f3.subarray(42 * NUM_CLASSES, 43 * NUM_CLASSES))
+    expect(c3.indexOf(Math.max(...c3))).toBe(0) // vide, à 2 voix contre 1
+  })
+})

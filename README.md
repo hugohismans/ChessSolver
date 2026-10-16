@@ -104,6 +104,18 @@ et servent de tests automatiques (`npm test`).
   jaune. Les corrections peuvent être ajoutées aux exemples du profil actif
   (case cochée par défaut). « Voir les cases » montre les vignettes vues
   par le modèle avec la pièce reconnue et la confiance.
+- **Plusieurs photos de la même position** : sur l'écran de correction,
+  « Ajouter une photo » (jusqu'à 3). Chaque photo est orientée
+  automatiquement pour coller aux précédentes, puis les probabilités sont
+  fusionnées case par case (moyenne géométrique). Une photo prise d'un
+  autre côté du plateau est la plus utile : les erreurs typiques (tête
+  d'une pièce haute qui déborde sur la case de derrière) ne tombent pas sur
+  les mêmes cases. Les corrections déjà faites sont conservées, une photo
+  peut être retirée, et les vignettes de toutes les photos rejoignent le
+  profil. Mesuré sur des photos de synthèse (3 positions, 192 cases) : 37
+  erreurs avec une photo, 18 avec deux, 7 avec trois ; surtout, les erreurs
+  restantes sont presque toutes signalées en jaune, alors qu'avec une seule
+  photo la plupart passent inaperçues.
 - **Calibrer mon jeu** (bouton en haut de l'écran Position) :
   - profils multiples (« jeu en bois », « jeu de voyage »...), création,
     renommage, suppression, bascule ;

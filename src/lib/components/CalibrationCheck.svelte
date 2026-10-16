@@ -71,7 +71,7 @@
     </p>
   {/if}
 
-  <button class="btn-secondary" onclick={() => (recognition.rotation = (recognition.rotation + 1) % 4)}>Tourner</button>
+  <button class="btn-secondary" onclick={() => recognition.rotate()}>Tourner</button>
 
   <div class="safe-bottom sticky bottom-0 -mx-4 bg-gradient-to-t from-stone-950 via-stone-950 to-stone-950/0 px-4 pt-4">
     <div class="grid grid-cols-[1fr_2fr] gap-2">

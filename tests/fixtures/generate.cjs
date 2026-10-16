@@ -19,6 +19,7 @@ const outDir = path.resolve(process.argv[3] || __dirname)
 const seedOffset = Number(process.argv[4] || 0)
 const maxRot = Number(process.argv[5] || 0.25)
 const fixedFen = process.argv[6] // position imposée (facultatif)
+const side = process.argv[7] || 'w' // côté de la prise de vue : w, b, ou mix (alterné)
 
 // Chaque pièce du sprite devient un SVG autonome
 const sprite = fs.readFileSync(path.join(root, 'src/assets/pieces.svg'), 'utf8')
@@ -45,7 +46,7 @@ async function main() {
   })
   fs.mkdirSync(outDir, { recursive: true })
   for (let n = 0; n < count; n++) {
-    const res = await page.evaluate(render, { seed: n + 1 + seedOffset, pieces, fen: fixedFen || POSITIONS[n % POSITIONS.length], maxRot })
+    const res = await page.evaluate(render, { seed: n + 1 + seedOffset, pieces, fen: fixedFen || POSITIONS[n % POSITIONS.length], maxRot, fromBlack: side === 'b' || (side === 'mix' && n % 2 === 1) })
     const name = `board-${String(n + 1).padStart(2, '0')}`
     fs.writeFileSync(path.join(outDir, `${name}.jpg`), Buffer.from(res.jpg.split(',')[1], 'base64'))
     fs.writeFileSync(path.join(outDir, `${name}.json`), JSON.stringify({ quad: res.quad, fen: res.fen, params: res.params }, null, 2))
@@ -55,7 +56,7 @@ async function main() {
 }
 
 // Exécuté dans la page
-async function render({ seed, pieces, fen, maxRot }) {
+async function render({ seed, pieces, fen, maxRot, fromBlack }) {
   // Générateur pseudo-aléatoire reproductible
   // mulberry32
   let s = seed * 0x9e3779b9
@@ -116,7 +117,7 @@ async function render({ seed, pieces, fen, maxRot }) {
   const size = lerp(0.5, 0.78) * Math.min(W, H)
   const cx = W / 2 + lerp(-0.08, 0.08) * W
   const cy = H / 2 + lerp(-0.05, 0.08) * H
-  const rot = lerp(-maxRot, maxRot)
+  const rot = lerp(-maxRot, maxRot) + (fromBlack ? Math.PI : 0)
   const tilt = lerp(0.62, 1.0) // bord du fond raccourci (perspective)
   const squash = lerp(0.6, 1.0) // écrasement vertical (angle de vue)
   const corners = [
@@ -189,6 +190,7 @@ async function render({ seed, pieces, fen, maxRot }) {
     ),
   )
   const rows = fen.split('/')
+  const sprites = []
   const height = lerp(1.1, 1.6) * (1.05 - squash) * 2 + 0.9 // pièces plus hautes si la vue est rasante
   rows.forEach((row, r) => {
     let c = 0
@@ -203,15 +205,22 @@ async function render({ seed, pieces, fen, maxRot }) {
       const right = project(B + (c + 1) * S, B + (r + 0.5) * S)
       const w = Math.hypot(right.x - left.x, right.y - left.y) * 1.05
       const h = w * height
+      sprites.push({ id, base, w, h })
+      c++
+    }
+  })
+  // Du fond vers l'avant, quel que soit le côté de la prise de vue
+  sprites.sort((a, b) => a.base.y - b.base.y)
+  for (const { id, base, w, h } of sprites) {
+    {
       g.save()
       g.shadowColor = 'rgba(0,0,0,0.45)'
       g.shadowBlur = w * 0.15
       g.shadowOffsetX = w * 0.08
       g.drawImage(imgs[id], base.x - w / 2, base.y - h * 0.92, w, h)
       g.restore()
-      c++
     }
-  })
+  }
 
   // 6. Éclairage inégal, bruit, flou
   const grad = g.createRadialGradient(lerp(0, W), lerp(0, H), 50, W / 2, H / 2, W)
